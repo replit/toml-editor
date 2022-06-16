@@ -1,10 +1,10 @@
-extern crate toml_edit;
 extern crate serde_json;
+extern crate toml_edit;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Value as JValue, from_str};
-use toml_edit::{Document, Item, Array, value, Value, table, array};
-use std::{io, io::prelude::*, fs, io::Error, io::ErrorKind};
+use serde_json::{from_str, Value as JValue};
+use std::{fs, io, io::prelude::*, io::Error, io::ErrorKind};
+use toml_edit::{array, table, value, Array, Document, Item, Value};
 
 /**
  *  we have two operations we can do on the toml file:
@@ -32,7 +32,7 @@ struct Remove {
 }
 
 // Reads from stdin a json that describes what operation to
-// perform on the toml file. Returns either "success" or 
+// perform on the toml file. Returns either "success" or
 // a message that starts with "error".
 fn main() {
     let dotreplit_filepath = ".replit";
@@ -68,7 +68,7 @@ fn main() {
 
                 let op_res = match json {
                     Command::put(put) => handle_put(put, &mut doc),
-                    Command::remove(remove) => handle_remove(remove, &mut doc)
+                    Command::remove(remove) => handle_remove(remove, &mut doc),
                 };
 
                 if op_res.is_err() {
@@ -98,7 +98,10 @@ fn handle_put(put_obj: Put, doc: &mut Document) -> Result<(), Error> {
 
     let converted_toml_res = json_serde_to_toml(&field_value);
     if converted_toml_res.is_err() {
-        return Err(Error::new(ErrorKind::Other, "error: could not convert json to toml"));
+        return Err(Error::new(
+            ErrorKind::Other,
+            "error: could not convert json to toml",
+        ));
     }
     let converted_toml = converted_toml_res.unwrap();
 
@@ -116,7 +119,7 @@ fn handle_remove(remove_obj: Remove, doc: &mut Document) -> Result<(), Error> {
 
 fn create_toml_array(items: Vec<Item>) -> Result<Item, Error> {
     // toml_edit treats arrays of values and arrays of tables differently
-    // and so we need to check if it's an array of tables or array of values 
+    // and so we need to check if it's an array of tables or array of values
     // and handle them accordingly.
     if items.len() == 0 {
         return Ok(array());
@@ -126,14 +129,20 @@ fn create_toml_array(items: Vec<Item>) -> Result<Item, Error> {
         let mut output_array = array();
         let output_array_table_res = output_array.as_array_of_tables_mut();
         if output_array_table_res.is_none() {
-            return Err(Error::new(ErrorKind::Other, "error: could not create array"));
+            return Err(Error::new(
+                ErrorKind::Other,
+                "error: could not create array",
+            ));
         }
         let output_array_table = output_array_table_res.unwrap();
 
         for item in items {
             let table_res = item.into_table();
             if table_res.is_err() {
-                return Err(Error::new(ErrorKind::Other, "error: could not convert item to table"));
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "error: could not convert item to table",
+                ));
             }
             let table = table_res.unwrap();
 
@@ -146,7 +155,10 @@ fn create_toml_array(items: Vec<Item>) -> Result<Item, Error> {
         for item in items {
             let value_res = item.into_value();
             if value_res.is_err() {
-                return Err(Error::new(ErrorKind::Other, "error: could not convert item to value"));
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "error: could not convert item to value",
+                ));
             }
             let value = value_res.unwrap();
             match value {
@@ -180,8 +192,8 @@ fn json_serde_to_toml(json: &JValue) -> Result<Item, Error> {
         JValue::Null => Ok(Item::None),
         JValue::Bool(b) => Ok(value(*b)),
         JValue::Number(n) => match n.as_f64() {
-                Some(f) => Ok(value(f)),
-                None => return Err(Error::new(ErrorKind::Other, "unsupported number type"))
+            Some(f) => Ok(value(f)),
+            None => return Err(Error::new(ErrorKind::Other, "unsupported number type")),
         },
         JValue::String(s) => Ok(value(s.clone())),
         JValue::Array(a) => {
@@ -191,9 +203,9 @@ fn json_serde_to_toml(json: &JValue) -> Result<Item, Error> {
                 .collect::<Result<Vec<Item>, Error>>();
             match items {
                 Ok(items) => create_toml_array(items),
-                Err(e) => Err(e)
+                Err(e) => Err(e),
             }
-        },
+        }
         JValue::Object(o) => {
             let items = o
                 .iter()
@@ -201,7 +213,7 @@ fn json_serde_to_toml(json: &JValue) -> Result<Item, Error> {
                 .collect::<Result<Vec<(String, Item)>, Error>>();
             match items {
                 Ok(items) => Ok(create_toml_table(items)),
-                Err(e) => Err(e)
+                Err(e) => Err(e),
             }
         }
     }

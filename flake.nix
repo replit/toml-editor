@@ -1,5 +1,5 @@
 {
-  description = "An RFB proxy that enables WebSockets and audio";
+  description = "A toml editor that preserves formatting.";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
@@ -11,12 +11,12 @@
       (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          "toml-editor" = pkgs.callPackage ./toml-editor.nix {
+          toml-editor = pkgs.callPackage ./toml-editor.nix {
             rev = if self ? rev then "0.0.0-${builtins.substring 0 7 self.rev}" else "0.0.0-dirty";
           };
         in
         {
-          defaultPackage = "toml-editor";
+          defaultPackage = toml-editor;
           packages = {
             inherit toml-editor;
           };
