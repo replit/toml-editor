@@ -1,29 +1,23 @@
-{ stdenv, openssl, lame, git, runCommand
-, copyPathToStore, rev, pkg-config, lib, defaultCrateOverrides, buildRustCrate
-, buildPackages, fetchurl }@pkgs:
-let
-  generatedBuild = import ./Cargo.nix {
-    inherit pkgs;
-    buildRustCrateForPkgs = pkgs:
-      pkgs.buildRustCrate.override {
-        defaultCrateOverrides = pkgs.defaultCrateOverrides // {
-          "toml-editor" = attrs: {
-            buildInputs = [ pkg-config ];
-          };
-        };
-      };
-  };
+with import <nixpkgs> {}; let c = callPackage ./Cargo.nix {}; in c.workspaceMembers."toml-editor".build
 
-  crate2nix = generatedBuild.rootCrate.build;
+# { stdenv, lame, git, runCommand, copyPathToStore, rev, lib, defaultCrateOverrides, buildRustCrate
 
-in stdenv.mkDerivation {
-  pname = "toml-editor";
-  version = rev;
+# , buildPackages }@pkgs:
+# let
+#   generatedBuild = import ./Cargo.nix {
+#     inherit pkgs;
+#   };
 
-  src = crate2nix;
+#   crate2nix = generatedBuild.rootCrate.build;
 
-  installPhase = ''
-    cp -r ${crate2nix} $out
-  '';
-}
+# in stdenv.mkDerivation {
+#   pname = "toml-editor";
+#   version = rev;
+
+#   src = crate2nix;
+
+#   installPhase = ''
+#     cp -r ${crate2nix} $out
+#   '';
+# }
 
