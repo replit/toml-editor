@@ -14,21 +14,19 @@ use toml_edit::{array, table, value, Array, Document, Item, Value};
 
 #[derive(Serialize, Deserialize)]
 enum Command {
-    #[allow(non_camel_case_types)]
-    put(Put),
-    #[allow(non_camel_case_types)]
-    remove(Remove),
+    Put(Put),
+    Remove(Remove),
 }
 
 #[derive(Serialize, Deserialize)]
 struct Put {
-    field: String,
-    value: JValue,
+    Field: String,
+    Value: String,
 }
 
 #[derive(Serialize, Deserialize)]
 struct Remove {
-    field: String,
+    Field: String,
 }
 
 // Reads from stdin a json that describes what operation to
@@ -67,8 +65,8 @@ fn main() {
                 let mut doc = doc_res.unwrap();
 
                 let op_res = match json {
-                    Command::put(put) => handle_put(put, &mut doc),
-                    Command::remove(remove) => handle_remove(remove, &mut doc),
+                    Command::Put(put) => handle_put(put, &mut doc),
+                    Command::Remove(remove) => handle_remove(remove, &mut doc),
                 };
 
                 if op_res.is_err() {
@@ -93,10 +91,19 @@ fn main() {
 }
 
 fn handle_put(put_obj: Put, doc: &mut Document) -> Result<(), Error> {
-    let field_name = put_obj.field.as_str();
-    let field_value = put_obj.value;
+    let field_name = put_obj.Field.as_str();
+    let field_value = put_obj.Value;
 
-    let converted_toml_res = json_serde_to_toml(&field_value);
+    let json_res = from_str(&field_value);
+    if json_res.is_err() {
+        return Err(Error::new(
+                ErrorKind::Other,
+                "Value field in put request is not json"
+        ));
+    }
+    let json_field_value = json_res.unwrap();
+
+    let converted_toml_res = json_serde_to_toml(&json_field_value);
     if converted_toml_res.is_err() {
         return Err(Error::new(
             ErrorKind::Other,
@@ -111,7 +118,7 @@ fn handle_put(put_obj: Put, doc: &mut Document) -> Result<(), Error> {
 }
 
 fn handle_remove(remove_obj: Remove, doc: &mut Document) -> Result<(), Error> {
-    let field_name = remove_obj.field.as_str();
+    let field_name = remove_obj.Field.as_str();
     doc.remove(field_name);
 
     return Ok(());
