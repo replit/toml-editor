@@ -1,0 +1,10 @@
+# oh yes
+test = "bla"
+[doo]
+beep = "bo"
+bruh = [1, 2, 3] # hehe
+gee = 3
+[[doo.tada]]
+ha = 1
+[[doo.tada]]
+ha = 2
