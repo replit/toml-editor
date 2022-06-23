@@ -9,7 +9,7 @@ use toml_edit::{Document, Item, Value, value, Table};
 //     get_table_mut_internal(doc, table_path, true)
 // } 
 
-pub fn get_table_mut_internal<'a>(
+pub fn get_feild<'a>(
     doc: &'a mut Document,
     table_path: &[String],
     insert_if_not_exists: bool,
@@ -56,6 +56,7 @@ pub fn get_table_mut_internal<'a>(
                                 )),
                             };
 
+                            /// HERE IS THE ISSUE
                             descend(val, &path[1..], insert_if_not_exists)
                         },
                         Value::InlineTable(table) => {
