@@ -1,5 +1,7 @@
 mod field_finder;
 mod converter;
+mod remover;
+mod adder;
 
 extern crate serde_json;
 extern crate toml_edit;
@@ -7,18 +9,21 @@ extern crate toml_edit;
 use std::{fs, io, io::prelude::*, io::Error, io::ErrorKind};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, Value as JValue};
-use toml_edit::{array, table, value, Array, Document, Item, Value};
+use toml_edit::Document;
+use serde_json::from_str;
 
-use crate::field_finder::get_field;
-use crate::converter::json_serde_to_toml;
+// use crate::field_finder::{get_field, TomlValue};
+// use crate::converter::json_serde_to_toml;
+use crate::remover::handle_remove;
+use crate::adder::handle_add;
 
 /**
  *  we have two operations we can do on the toml file:
- *  1. put field - creates the field if it doesn't already exist and sets it
+ *  1. add field - creates the field if it doesn't already exist and sets it
  *  2. remove field - removes the field if it exists
  */
 
+#[allow(non_snake_case)]
 #[derive(Serialize, Deserialize)]
 struct Op {
     Op: String,
@@ -67,7 +72,7 @@ fn main() {
                 let mut error_encountered: bool = false;
                 for op in json {
                     let op_res = match op.Op.as_str() {
-                        "put" => handle_put(op.Field, op.Value, &mut doc),
+                        "add" => handle_add(op.Field, op.Value, &mut doc),
                         "remove" => handle_remove(op.Field, &mut doc),
                         _ => Err(Error::new(ErrorKind::Other, "Unexpected op type")),
                     };
@@ -94,105 +99,5 @@ fn main() {
             }
         }
     }
-}
-
-fn handle_put(field: String, value_opt: Option<String>, doc: &mut Document) -> Result<(), Error> {
-    let mut fields = field.split('/').collect();
-
-    if fields.len() < 1 {
-        return Err(Error::new(ErrorKind::Other, "Field path is empty"));
-    }
-
-    let final_field = match get_field(fields, doc) {
-        Ok(final_field) => final_field,
-        Err(_) => return Err(Error::new(ErrorKind::Other, "Could not find field")),
-    };
-
-    if value_opt.is_none() {
-        return Err(Error::new(
-                ErrorKind::Other,
-                "Expected value to be none null"
-        ));
-    }
-    let value = value_opt.unwrap();
-
-    let field_value = value.as_str();
-
-    let json_field_value = match from_str(&field_value) {
-        Ok(json_field_value) => json_field_value,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: value field in put request is not json"
-            ));
-        }
-    };
-
-    let toml = match json_serde_to_toml(&json_field_value) {
-        Ok(converted_toml) => converted_toml,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not convert json to toml",
-            ));
-        }
-    };
-
-    final_field = toml;
-
-    // doc[field_name] = converted_toml;
-
-    return Ok(());
-}
-
-fn handle_remove(field: String, doc: &mut Document) -> Result<(), Error> {
-    let mut fields: Vec<&str> = field.split('/').collect();
-
-    if fields.len() < 1 {
-        return Err(Error::new(ErrorKind::Other, "Field path is empty"));
-    }
-
-    let last_field = fields.pop().unwrap();
-
-    if fields.len() == 0 {
-        doc.remove(last_field);
-
-        return Ok(());
-    } 
-
-    let field = match get_field(fields, doc) {
-        Ok(field) => field,
-        Err(e) => return Err(e),
-    };
-
-    if field.is_array() {
-        let field_array = field.as_array_mut().unwrap();
-
-        let array_index = match last_field.parse::<usize>() {
-            Ok(index) => index,
-            Err(_) => return Err(Error::new(ErrorKind::Other, "could not parse array index")),
-        };
-
-        if array_index >= field_array.len() {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: array index out of bounds",
-            ));
-        }
-
-        field_array.remove(array_index);
-    } else if field.is_table() {
-        let field_table = field.as_table_mut().unwrap();
-
-        field_table.remove(last_field);
-    } else {
-        return Err(Error::new(
-            ErrorKind::Other,
-            "error: field is not an array or table",
-        ));
-    }
-
-
-    return Ok(());
 }
 
