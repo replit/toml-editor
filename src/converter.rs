@@ -1,7 +1,7 @@
 use std::{io::Error, io::ErrorKind};
 
 use serde_json::Value as JValue;
-use toml_edit::{array, table, value, Array, Item, Value, InlineTable};
+use toml_edit::{ArrayOfTables, value, Table, Array, Item, Value, InlineTable};
 
 // converts json objects to toml objects
 pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item, Error> {
@@ -18,6 +18,7 @@ pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item, Error> {
                 .iter()
                 .map(|v| json_to_toml(v, inline))
                 .collect::<Result<Vec<Item>, Error>>();
+
             match items {
                 Ok(items) => create_toml_array(items, inline),
                 Err(e) => Err(e),
@@ -36,23 +37,49 @@ pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item, Error> {
     }
 }
 
-fn create_toml_table(items: Vec<(String, Item)>, inline: bool) -> Result<Item, Error> {
-    let mut output_table = if inline { table() } else { Item::Value(Value::InlineTable(InlineTable::new())) };
+fn create_toml_inline_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
+    let mut output_table = InlineTable::new();
 
-    let table_like_item = match output_table.as_table_like_mut() {
-        Some(t) => t,
-        None => return Err(Error::new(ErrorKind::Other, "error: could not create table like")),
-    };
+    for (k, v) in items {
+        let item_value = match v {
+            Item::Value(v) => v,
+            _ => return Err(Error::new(ErrorKind::Other, "unsupported type")),
+        };
 
-    for (item_key, item_value) in items {
-        table_like_item.insert(item_key.as_str(), item_value);
+        output_table.insert(k.as_str(), item_value);
     }
 
-    return Ok(output_table);
+    return Ok(Item::Value(Value::InlineTable(output_table)));
+}
+
+fn create_toml_block_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
+    let mut output_table = Table::new();
+
+    for (k, v) in items {
+        output_table.insert(k.as_str(), v);
+    }
+
+    return Ok(Item::Table(output_table));
+}
+
+fn create_toml_table(items: Vec<(String, Item)>, inline: bool) -> Result<Item, Error> {
+    if inline { create_toml_inline_table(items) } else { create_toml_block_table(items) }
+}
+
+fn every_item_is_table(items: &Vec<Item>) -> bool {
+    for item in items {
+        if let Item::Table(_) = item {
+            continue;
+        } else {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 fn create_toml_array(items: Vec<Item>, inline: bool) -> Result<Item, Error> {
-    if inline { create_toml_inline_array(items) } else { create_toml_array_of_tables(items) }
+    if !inline && every_item_is_table(&items) { create_toml_array_of_tables(items) } else { create_toml_inline_array(items) }
 }
 
 fn create_toml_inline_array(items: Vec<Item>) -> Result<Item, Error> {
@@ -68,20 +95,110 @@ fn create_toml_inline_array(items: Vec<Item>) -> Result<Item, Error> {
 }
 
 fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item, Error> {
-    let mut output_array = array();
-    let output_array_tables = match output_array.as_array_of_tables_mut() {
-        Some(t) => t,
-        None => return Err(Error::new(ErrorKind::Other, "error: could not create array of tables")),
-    };
+    let mut output_array = ArrayOfTables::new();
 
     for item in items {
-        let table = match item.into_table() {
-            Ok(t) => t,
-            Err(_) => return Err(Error::new(ErrorKind::Other, "error: could not convert item to table in array of tables")),
-        };
-
-        output_array_tables.push(table);
+        match item {
+            Item::Table(t) => output_array.push(t),
+            _ => return Err(Error::new(ErrorKind::Other, "error: could not create array of tables")),   
+        }
     }
 
-    return Ok(output_array);
+    return Ok(Item::ArrayOfTables(output_array));
+}
+
+#[cfg(test)]
+mod converter_tests {
+    use super::*; 
+    use serde_json::{from_str, Value as JValue};
+    use toml_edit::Document;
+
+    #[test]
+    fn test_json_to_toml_array() {
+        let json: JValue = from_str("[1, 2, 3]").unwrap();
+        let toml = json_to_toml(&json, true).unwrap();
+        let res = toml.to_string();
+        assert_eq!(res, "[1.0, 2.0, 3.0]");
+    }
+
+    #[test]
+    fn test_json_to_block_table() {
+        let json: JValue = from_str("{\"a\": 1, \"b\": 2}").unwrap();
+        let toml = json_to_toml(&json, false).unwrap();
+        let res = toml.to_string();
+        assert_eq!(res.trim(), "a = 1.0\nb = 2.0".trim());
+    }
+
+    #[test]
+    fn test_json_to_inline_table() {
+        let json: JValue = from_str("{\"a\": 1, \"b\": 2}").unwrap();
+        let toml = json_to_toml(&json, true).unwrap();
+        let res = toml.to_string();
+        assert_eq!(res.trim(), "{ a = 1.0, b = 2.0 }".trim());
+    }
+
+    #[test]
+    fn test_json_to_inline_table_with_array() {
+        let json_string = r#"{
+    "who": 123,
+    "arr": [
+        { "a": 1, "b": 2 },
+        { "a": 3, "b": 4 }
+    ]
+}"#;
+        let json: JValue = from_str(json_string).unwrap();
+        let toml = json_to_toml(&json, true).unwrap();
+        let res = toml.to_string();
+        assert_eq!(res.trim(), "{ arr = [{ a = 1.0, b = 2.0 }, { a = 3.0, b = 4.0 }], who = 123.0 }".trim());
+    }
+
+    #[test]
+    fn test_json_to_toml_table_with_array_of_tables() {
+        let json_string = r#"[
+        { "a": 1, "b": 2 },
+        { "a": 3, "b": 4 }
+    ]"#;
+        let json: JValue = from_str(json_string).unwrap();
+        let toml_res = json_to_toml(&json, false);
+        assert_eq!(toml_res.is_ok(), true);
+        let mut doc = Document::new();
+        doc["arr"] = toml_res.unwrap();
+
+        let expected = r#"
+[[arr]]
+a = 1.0
+b = 2.0
+
+[[arr]]
+a = 3.0
+b = 4.0
+"#;
+
+        assert_eq!(doc.to_string().trim(), expected.trim());
+    }
+
+    #[test]
+    fn test_json_to_toml_table_with_deep_array() {
+        let json_string = r#"[
+        { "a": 1, "b": [1, 2, 3] },
+        { "a": 3, "b": [2, 3, 4] }
+    ]"#;
+        let json: JValue = from_str(json_string).unwrap();
+        let toml_res = json_to_toml(&json, false);
+        assert_eq!(toml_res.is_ok(), true);
+        let mut doc = Document::new();
+        doc["arr"] = toml_res.unwrap();
+
+        let expected = r#"
+[[arr]]
+a = 1.0
+b = [1.0, 2.0, 3.0]
+
+[[arr]]
+a = 3.0
+b = [2.0, 3.0, 4.0]
+"#;
+
+        assert_eq!(doc.to_string().trim(), expected.trim());
+    }
 }

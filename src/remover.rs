@@ -68,3 +68,140 @@ fn remove_in_inline_table(inline_table: &mut InlineTable, last_field: String) ->
     inline_table.remove(last_field.as_str());
     Ok(())
 }
+
+
+#[cfg(test)]
+mod remover_tests {
+    use super::*;
+    use toml_edit::{Document, TomlError};
+
+    fn get_dotreplit_content() -> Result<Document, TomlError> {
+r#"test = "yo"
+[foo]
+bar = "baz"
+[foo.bla]
+bro = 123
+[[foo.arr]]
+glub = "glub"
+[[foo.arr]]
+glub = "group"
+[[foo.arr]]
+none = "all""#.to_string().parse::<Document>()
+    }
+
+    fn get_dotreplit_content_with_formatting() -> Result<Document, TomlError> {
+r#"test = "yo"
+[foo]
+  bar = "baz"  # comment
+[foo.bla]
+    bro = 123
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
+
+    [[foo.arr]]
+        glub = "group"
+[[foo.arr]]
+        none = "all""#.to_string().parse::<Document>()
+    }
+
+    macro_rules! remove_test {
+        ($name:ident, $field:expr, $contents:expr, $expected:expr) => {
+            #[test]
+            fn $name() {
+                let mut doc = $contents;
+                handle_remove($field.to_string(), &mut doc).unwrap();
+                assert_eq!(doc.to_string().trim(), $expected.trim());
+            }
+        };
+    }
+
+    remove_test!(
+        test_remove_basic, 
+        "foo/bar", 
+        get_dotreplit_content().unwrap(), 
+        r#"
+test = "yo"
+[foo]
+[foo.bla]
+bro = 123
+[[foo.arr]]
+glub = "glub"
+[[foo.arr]]
+glub = "group"
+[[foo.arr]]
+none = "all""#
+    );
+
+    remove_test!(
+        test_remove_array_index, 
+        "foo/arr/0", 
+        get_dotreplit_content().unwrap(), 
+        r#"
+test = "yo"
+[foo]
+bar = "baz"
+[foo.bla]
+bro = 123
+[[foo.arr]]
+glub = "group"
+[[foo.arr]]
+none = "all""#
+    );
+
+    remove_test!(
+        test_remove_shallow,
+        "foo",
+        get_dotreplit_content().unwrap(),
+        r#"test = "yo""#
+    );
+
+    remove_test!(
+        test_remove_deep,
+        "foo/arr/2/none",
+        get_dotreplit_content().unwrap(),
+        r#"
+test = "yo"
+[foo]
+bar = "baz"
+[foo.bla]
+bro = 123
+[[foo.arr]]
+glub = "glub"
+[[foo.arr]]
+glub = "group"
+[[foo.arr]]"#
+    );
+
+    remove_test!(
+        test_keep_comments,
+        "foo/arr/2",
+        get_dotreplit_content_with_formatting().unwrap(),
+        r#"test = "yo"
+[foo]
+  bar = "baz"  # comment
+[foo.bla]
+    bro = 123
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
+
+    [[foo.arr]]
+        glub = "group""#);
+
+    remove_test!(
+        test_remove_inline_array,
+        "arr/1",
+        "arr = [1, 2, 3, 4] # comment".parse::<Document>().unwrap(),
+        "arr = [1, 3, 4] # comment"
+    );
+
+    remove_test!(
+        test_remove_inline_table,
+        "tbl/bla",
+        "tbl = { bla = \"bar\", blue = 123 } # go go".parse::<Document>().unwrap(),
+        "tbl = { blue = 123 } # go go"
+    );
+}

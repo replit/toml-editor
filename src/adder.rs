@@ -25,7 +25,7 @@ pub fn handle_add(field: String, value_opt: Option<String>, doc: &mut Document) 
     }
     let value = value_opt.unwrap();
 
-    let field_value_json = match from_str(&value.as_str()) {
+    let field_value_json: JValue = match from_str(&value.as_str()) {
         Ok(json_field_value) => json_field_value,
         Err(_) => {
             return Err(Error::new(
@@ -35,41 +35,39 @@ pub fn handle_add(field: String, value_opt: Option<String>, doc: &mut Document) 
         }
     };
 
-    match final_field_value {
-        TomlValue::Table(table) => add_in_table(table, last_field, &field_value_json),
-        TomlValue::ArrayOfTables(array) => add_in_array_of_tables(array, last_field, &field_value_json),
-        TomlValue::Array(array) => add_in_array(array, last_field, &field_value_json),
-        TomlValue::InlineTable(table) => add_in_inline_table(table, last_field, &field_value_json),
-        TomlValue::Value(value) => add_in_generic_value(value, last_field, &field_value_json),
-    }
-}
+    let is_inline = match final_field_value {
+        TomlValue::ArrayOfTables(_) => false,
+        TomlValue::Table(_) => false,
+        TomlValue::Array(_) => true,
+        TomlValue::InlineTable(_) => true,
+        TomlValue::Value(_) => true
+    };
 
-fn add_in_table(table: &mut Table, last_field: String, value: &JValue) -> Result<(), Error> {
-    let toml = match json_to_toml(value, false) {
-        Ok(toml) => toml,
+    let field_value_toml: Item = match json_to_toml(&field_value_json, is_inline) {
+        Ok(toml_field_value) => toml_field_value,
         Err(_) => {
             return Err(Error::new(
                 ErrorKind::Other,
-                "error: could not convert json to toml",
+                "error: value field in add request cannot be converted to toml"
             ));
         }
     };
 
+    match final_field_value {
+        TomlValue::Table(table) => add_in_table(table, last_field, field_value_toml),
+        TomlValue::ArrayOfTables(array) => add_in_array_of_tables(array, last_field, field_value_toml),
+        TomlValue::Array(array) => add_in_array(array, last_field, field_value_toml),
+        TomlValue::InlineTable(table) => add_in_inline_table(table, last_field, field_value_toml),
+        TomlValue::Value(value) => add_in_generic_value(value, last_field, field_value_toml),
+    }
+}
+
+fn add_in_table(table: &mut Table, last_field: String, toml: Item) -> Result<(), Error> {
     table.insert(last_field.as_str(), toml);
     Ok(())
 }
 
-fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: String, value: &JValue) -> Result<(), Error> {
-    let toml = match json_to_toml(value, false) {
-        Ok(toml) => toml,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not convert json to toml",
-            ));
-        }
-    };
-
+fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: String, toml: Item) -> Result<(), Error> {
     let insert_at_index = match last_field.parse::<usize>() {
         Ok(index) => index,
         Err(_) => {
@@ -109,17 +107,7 @@ fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: String, value: 
     Ok(())
 }
 
-fn add_in_inline_table(table: &mut InlineTable, last_field: String, value: &JValue) -> Result<(), Error> {
-    let toml = match json_to_toml(value, true) {
-        Ok(toml) => toml,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not convert json to toml",
-            ));
-        }
-    };
-
+fn add_in_inline_table(table: &mut InlineTable, last_field: String, toml: Item) -> Result<(), Error> {
     // since we requested inline toml, this should be a value
     match toml {
         Item::Value(value) => {
@@ -142,17 +130,7 @@ fn add_in_inline_table(table: &mut InlineTable, last_field: String, value: &JVal
     Ok(())
 }
 
-fn add_in_array(array: &mut Array, last_field: String, value: &JValue) -> Result<(), Error> {
-    let toml = match json_to_toml(value, true) {
-        Ok(toml) => toml,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not convert json to toml",
-            ));
-        }
-    };
-
+fn add_in_array(array: &mut Array, last_field: String, toml: Item) -> Result<(), Error> {
     let insert_at_index = match last_field.parse::<usize>() {
         Ok(index) => index,
         Err(_) => {
@@ -193,10 +171,10 @@ fn add_in_array(array: &mut Array, last_field: String, value: &JValue) -> Result
     Ok(())
 }
 
-fn add_in_generic_value(generic_value: &mut Value, last_field: String, value: &JValue) -> Result<(), Error> {
+fn add_in_generic_value(generic_value: &mut Value, last_field: String, toml: Item) -> Result<(), Error> {
     match generic_value {
-        Value::InlineTable(table) => add_in_inline_table(table, last_field, value),
-        Value::Array(array) => add_in_array(array, last_field, value),
+        Value::InlineTable(table) => add_in_inline_table(table, last_field, toml),
+        Value::Array(array) => add_in_array(array, last_field, toml),
         _ => {
             return Err(Error::new(
                 ErrorKind::Other,
@@ -204,4 +182,196 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: String, value: &J
             ));
         }
     }
+}
+
+#[cfg(test)]
+mod adder_tests {
+    use super::*;
+    use toml_edit::{Document, TomlError};
+
+    fn get_dotreplit_content_with_formatting() -> Result<Document, TomlError> {
+r#"test = "yo"
+[foo]
+  bar = "baz"  # comment
+  inlineTable = {a = "b", c = "d" }
+  inlineArray = [ "e", "f" ]
+[foo.bla]
+    bro = 123
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
+
+    [[foo.arr]]
+        glub = "group"
+[[foo.arr]]
+        none = "all""#.to_string().parse::<Document>()
+    }
+
+    macro_rules! add_test {
+        ($name:ident, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+            #[test]
+            fn $name() {
+                let mut doc = $contents;
+                let expected = $expected;
+                let field = $field;
+                let value = Some($value.to_string());
+
+                let result = handle_add(field.to_string(), value, &mut doc);
+                assert!(result.is_ok(), "error: {:?}", result);
+                assert_eq!(doc.to_string().trim(), expected.trim());
+            }
+        };
+    }
+
+    add_test!(
+        add_to_toml_basic, 
+        "new", 
+        "\"yo\"", 
+        get_dotreplit_content_with_formatting().unwrap(),
+        r#"
+test = "yo"
+new = "yo"
+[foo]
+  bar = "baz"  # comment
+  inlineTable = {a = "b", c = "d" }
+  inlineArray = [ "e", "f" ]
+[foo.bla]
+    bro = 123
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
+
+    [[foo.arr]]
+        glub = "group"
+[[foo.arr]]
+        none = "all"
+    "#
+    );
+
+    add_test!(
+        add_to_toml_deep,
+        "foo/bla/new", 
+        "\"yo\"", 
+        get_dotreplit_content_with_formatting().unwrap(),
+        r#"
+test = "yo"
+[foo]
+  bar = "baz"  # comment
+  inlineTable = {a = "b", c = "d" }
+  inlineArray = [ "e", "f" ]
+[foo.bla]
+    bro = 123
+new = "yo"
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
+
+    [[foo.arr]]
+        glub = "group"
+[[foo.arr]]
+        none = "all"
+    "#
+    );
+
+    add_test!(
+        add_array,
+        "new",
+        r#"["a", "b", "c"]"#,
+        get_dotreplit_content_with_formatting().unwrap(),
+        r#"
+test = "yo"
+new = ["a", "b", "c"]
+[foo]
+  bar = "baz"  # comment
+  inlineTable = {a = "b", c = "d" }
+  inlineArray = [ "e", "f" ]
+[foo.bla]
+    bro = 123
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
+
+    [[foo.arr]]
+        glub = "group"
+[[foo.arr]]
+        none = "all"
+    "#
+    );
+
+    add_test!(
+        add_array_at_index,
+        "foo/arr/1/glub",
+        r#"{"hi": 123}"#,
+        get_dotreplit_content_with_formatting().unwrap(),
+        r#"
+test = "yo"
+[foo]
+  bar = "baz"  # comment
+  inlineTable = {a = "b", c = "d" }
+  inlineArray = [ "e", "f" ]
+[foo.bla]
+    bro = 123
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
+
+    [[foo.arr]]
+
+[foo.arr.glub]
+hi = 123.0
+[[foo.arr]]
+        none = "all"
+    "#
+    );
+
+    add_test!(
+        replace_large,
+        "foo",
+        r#"[1, 2, 3]"#,
+        get_dotreplit_content_with_formatting().unwrap(),
+        r#"
+test = "yo"
+foo = [1.0, 2.0, 3.0]
+"#
+    );
+
+    add_test!(
+        simple_push_into_array,
+        "arr/2",
+        "123",
+        r#"arr = [1, 2]"#.parse::<Document>().unwrap(),
+        r#"arr = [1, 2, 123.0]"#
+    );
+
+    // add_test!(
+    //     push_table_into_array,
+    //     "foo/arr/3/yop",
+    //     r#"no"#,
+    //     get_dotreplit_content_with_formatting().unwrap(),
+    //     r#"
+// test = "yo"
+// [foo]
+  // bar = "baz"  # comment
+  // inlineTable = {a = "b", c = "d" }
+  // inlineArray = [ "e", "f" ]
+// [foo.bla]
+    // bro = 123
+// [[foo.arr]]
+    // glub = "glub" # more comment
+// # comment here
+// # comment there
+
+    // [[foo.arr]]
+    //     glub = "group"
+// [[foo.arr]]
+    //     none = "all"
+// [[foo.arr]]
+    //     yop = "no"
+    // "#
+    // );
 }
