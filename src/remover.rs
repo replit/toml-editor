@@ -9,11 +9,11 @@ pub fn handle_remove(field: String, doc: &mut Document) -> Result<(), Error> {
         .collect::<Vec<String>>();
 
     let last_field = match path_split.pop() {
-        Some(last_field) => last_field.to_string(),
+        Some(last_field) => last_field,
         None => return Err(Error::new(ErrorKind::Other, "Path is empty")),
     };
 
-    let field = match get_field(&path_split, &last_field.to_string(), doc) {
+    let field = match get_field(&path_split, &last_field, doc) {
         Ok(field) => field,
         Err(e) => return Err(e),
     };
@@ -23,12 +23,10 @@ pub fn handle_remove(field: String, doc: &mut Document) -> Result<(), Error> {
         TomlValue::Array(array) => remove_in_array(array, last_field),
         TomlValue::ArrayOfTables(array) => remove_in_array_of_tables(array, last_field),
         TomlValue::InlineTable(table) => remove_in_inline_table(table, last_field),
-        TomlValue::Value(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: cannot remove_in non array/table value",
-            ));
-        }
+        TomlValue::Value(_) => Err(Error::new(
+            ErrorKind::Other,
+            "error: cannot remove_in non array/table value",
+        )),
     }
 }
 

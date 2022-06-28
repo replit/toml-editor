@@ -15,7 +15,7 @@ pub fn handle_add(
         .collect::<Vec<String>>();
 
     let last_field = match path_split.pop() {
-        Some(last_field) => last_field.to_string(),
+        Some(last_field) => last_field,
         None => return Err(Error::new(ErrorKind::Other, "Path is empty")),
     };
 
@@ -32,7 +32,7 @@ pub fn handle_add(
     }
     let value = value_opt.unwrap();
 
-    let field_value_json: JValue = match from_str(&value.as_str()) {
+    let field_value_json: JValue = match from_str(value.as_str()) {
         Ok(json_field_value) => json_field_value,
         Err(_) => {
             return Err(Error::new(
@@ -198,12 +198,10 @@ fn add_in_generic_value(
     match generic_value {
         Value::InlineTable(table) => add_in_inline_table(table, last_field, toml),
         Value::Array(array) => add_in_array(array, last_field, toml),
-        _ => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not add into generic value",
-            ));
-        }
+        _ => Err(Error::new(
+            ErrorKind::Other,
+            "error: could not add into generic value",
+        )),
     }
 }
 

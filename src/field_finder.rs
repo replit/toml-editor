@@ -31,9 +31,9 @@ fn descend_table<'a>(
     };
 
     let val = if insert_if_not_exists {
-        table[&segment].or_insert(toml_edit::table())
+        table[segment].or_insert(toml_edit::table())
     } else {
-        match table.get_mut(&segment) {
+        match table.get_mut(segment) {
             Some(val) => val,
             None => return Err(Error::new(ErrorKind::Other, "Path does not exist")),
         }
@@ -123,7 +123,7 @@ fn descend_array_of_tables<'a>(
     descend_table(tbl, &path[1..], insert_if_not_exists, last_field)
 }
 
-fn get_last_field_container(last_field: &String) -> Value {
+fn get_last_field_container(last_field: &str) -> Value {
     // if last field is a number, then we need to create an array
     if last_field.parse::<usize>().is_ok() {
         Value::Array(Array::new())
@@ -144,11 +144,11 @@ fn descend_inline_table<'a>(
         None => return Ok(TomlValue::InlineTable(inline_table)),
     };
 
-    if insert_if_not_exists && !inline_table.contains_key(&segment) {
+    if insert_if_not_exists && !inline_table.contains_key(segment) {
         inline_table.insert(segment, get_last_field_container(last_field));
     }
 
-    let val = match inline_table.get_mut(&segment) {
+    let val = match inline_table.get_mut(segment) {
         Some(val) => val,
         None => return Err(Error::new(ErrorKind::Other, "Path does not exist")),
     };

@@ -10,7 +10,7 @@ pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item, Error> {
         JValue::Bool(b) => Ok(value(*b)),
         JValue::Number(n) => match n.as_f64() {
             Some(f) => Ok(value(f)),
-            None => return Err(Error::new(ErrorKind::Other, "unsupported number type")),
+            None => Err(Error::new(ErrorKind::Other, "unsupported number type")),
         },
         JValue::String(s) => Ok(value(s.clone())),
         JValue::Array(a) => {
@@ -49,7 +49,7 @@ fn create_toml_inline_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
         output_table.insert(k.as_str(), item_value);
     }
 
-    return Ok(Item::Value(Value::InlineTable(output_table)));
+    Ok(Item::Value(Value::InlineTable(output_table)))
 }
 
 fn create_toml_block_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
@@ -59,7 +59,7 @@ fn create_toml_block_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
         output_table.insert(k.as_str(), v);
     }
 
-    return Ok(Item::Table(output_table));
+    Ok(Item::Table(output_table))
 }
 
 fn create_toml_table(items: Vec<(String, Item)>, inline: bool) -> Result<Item, Error> {
@@ -79,7 +79,7 @@ fn every_item_is_table(items: &Vec<Item>) -> bool {
         }
     }
 
-    return true;
+    true
 }
 
 fn create_toml_array(items: Vec<Item>, inline: bool) -> Result<Item, Error> {
@@ -104,7 +104,7 @@ fn create_toml_inline_array(items: Vec<Item>) -> Result<Item, Error> {
         }
     }
 
-    return Ok(value(output_array));
+    Ok(value(output_array))
 }
 
 fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item, Error> {
@@ -122,7 +122,7 @@ fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item, Error> {
         }
     }
 
-    return Ok(Item::ArrayOfTables(output_array));
+    Ok(Item::ArrayOfTables(output_array))
 }
 
 #[cfg(test)]
