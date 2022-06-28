@@ -1,5 +1,6 @@
 # oh yes
 test = "bla"
+run = "echo hi"
 [doo]
 beep = "bo"
 bruh = [1, 2, 3] # hehe

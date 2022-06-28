@@ -26,7 +26,7 @@ use crate::remover::handle_remove;
 #[derive(Serialize, Deserialize)]
 struct Op {
     Op: String,
-    Field: String,
+    Path: String,
     Value: Option<String>,
 }
 
@@ -76,8 +76,8 @@ fn main() {
                 let mut error_encountered: bool = false;
                 for op in json {
                     let op_res = match op.Op.as_str() {
-                        "add" => handle_add(op.Field, op.Value, &mut doc),
-                        "remove" => handle_remove(op.Field, &mut doc),
+                        "add" => handle_add(op.Path, op.Value, &mut doc),
+                        "remove" => handle_remove(op.Path, &mut doc),
                         _ => Err(Error::new(ErrorKind::Other, "Unexpected op type")),
                     };
 
