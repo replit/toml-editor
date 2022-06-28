@@ -160,7 +160,7 @@ mod converter_tests {
     ]"#;
         let json: JValue = from_str(json_string).unwrap();
         let toml_res = json_to_toml(&json, false);
-        assert_eq!(toml_res.is_ok(), true);
+        assert!(toml_res.is_ok());
         let mut doc = Document::new();
         doc["arr"] = toml_res.unwrap();
 
@@ -185,7 +185,7 @@ b = 4.0
     ]"#;
         let json: JValue = from_str(json_string).unwrap();
         let toml_res = json_to_toml(&json, false);
-        assert_eq!(toml_res.is_ok(), true);
+        assert!(toml_res.is_ok());
         let mut doc = Document::new();
         doc["arr"] = toml_res.unwrap();
 

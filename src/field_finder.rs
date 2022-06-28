@@ -141,44 +141,62 @@ fn descend_array<'a>(array: &'a mut Array, path: &[String], insert_if_not_exists
     descend_value(val, &path[1..], insert_if_not_exists, last_field)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod finger_tests {
+    use super::*;
+    use toml_edit::Document;
 
-//     #[test]
-//     fn get_field_test() {
-//         let doc_string = r#"
-// test = "yo"
-// [foo]
-// bar = "baz"
-// [foo.bla]
-// bla = "bla"
-// "#;
+    #[test]
+    fn get_basic_field() {
+        let doc_string = r#"
+test = "yo"
+[foo]
+bar = "baz"
+[foo.bla]
+bla = "bla"
+"#;
 
-//         let doc_res = doc_string.parse::<Document>();
-//         if doc_res.is_err() {
-//             println!("error: could not parse .replit");
-//             return;
-//         }
-//         let mut doc = doc_res.unwrap();
+        let mut doc = doc_string.parse::<Document>().unwrap();
+        let val = get_field(&(vec!("foo".to_string())), &"bar".to_string(), &mut doc).unwrap();
 
-//         let field_res = get_field("test".to_string(), &mut doc);
-//         if field_res.is_err() {
-//             println!("error: could not get field");
-//             return;
-//         }
-//         let field = field_res.unwrap();
+        if let TomlValue::Table(table) = val {
+            assert!(table.contains_key("bar"));
+        } else {
+            panic!("Expected table");
+        }
+    }
 
-//         assert_eq!(field.to_string(), "yo");
+    #[test]
+    fn insert_inline_array() {
+        let doc_string = r#"test = [ 1 ]"#;
+        let mut doc = doc_string.parse::<Document>().unwrap();
+        let fields = ["test".to_string(), ];
+        let val = get_field(&(fields), &"1".to_string(), &mut doc).unwrap();
 
-//         let field_res = get_field("foo/bar".to_string(), &mut doc);
-//         if field_res.is_err() {
-//             println!("error: could not get field");
-//             return;
-//         }
-//         let field = field_res.unwrap();
+        if let TomlValue::Array(array) = val {
+            assert_eq!(array.len(), 1);
+        } else {
+            panic!("Expected array");
+        }
+    }
 
-//         assert_eq!(field.to_string(), "baz");
-//     }
-// }
+    #[test]
+    fn insert_table_array() {
+        let doc_string = r#"
+[[test]]
+foo = "bar"
+[[test]]
+foo = "baz"
+"#;
+        let mut doc = doc_string.parse::<Document>().unwrap();
+        let fields = ["test".to_string(), ];
+        let val = get_field(&(fields), &"2".to_string(), &mut doc).unwrap();
+
+        if let TomlValue::ArrayOfTables(array) = val {
+            assert_eq!(array.len(), 2);
+        } else {
+            panic!("Expected array");
+        }
+    }
+}
 

@@ -348,30 +348,30 @@ foo = [1.0, 2.0, 3.0]
         r#"arr = [1, 2, 123.0]"#
     );
 
-    // add_test!(
-    //     push_table_into_array,
-    //     "foo/arr/3/yop",
-    //     r#"no"#,
-    //     get_dotreplit_content_with_formatting().unwrap(),
-    //     r#"
-// test = "yo"
-// [foo]
-  // bar = "baz"  # comment
-  // inlineTable = {a = "b", c = "d" }
-  // inlineArray = [ "e", "f" ]
-// [foo.bla]
-    // bro = 123
-// [[foo.arr]]
-    // glub = "glub" # more comment
-// # comment here
-// # comment there
+    add_test!(
+        push_into_table_array,
+        "foo/arr/3",
+        r#"{}"#,
+        get_dotreplit_content_with_formatting().unwrap(),
+        r#"
+test = "yo"
+[foo]
+  bar = "baz"  # comment
+  inlineTable = {a = "b", c = "d" }
+  inlineArray = [ "e", "f" ]
+[foo.bla]
+    bro = 123
+[[foo.arr]]
+    glub = "glub" # more comment
+# comment here
+# comment there
 
-    // [[foo.arr]]
-    //     glub = "group"
-// [[foo.arr]]
-    //     none = "all"
-// [[foo.arr]]
-    //     yop = "no"
-    // "#
-    // );
+    [[foo.arr]]
+        glub = "group"
+[[foo.arr]]
+        none = "all"
+
+[[foo.arr]]
+    "#
+    );
 }
