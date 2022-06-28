@@ -37,9 +37,16 @@ fn main() {
     let default_dotreplit_filepath = ".replit";
     let mut args = env::args();
 
-    let dotreplit_filepath = args
+    let arg1 = args
         .nth(1)
         .unwrap_or_else(|| default_dotreplit_filepath.to_string());
+
+    if arg1 == "--info" {
+        println!("Version: 0.3.0");
+        return;
+    }
+
+    let dotreplit_filepath = arg1;
 
     // read line by line from stdin until eof
     let stdin = io::stdin();
