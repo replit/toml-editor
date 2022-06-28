@@ -6,7 +6,8 @@ mod remover;
 extern crate serde_json;
 extern crate toml_edit;
 
-use std::{fs, io, io::prelude::*, io::Error, io::ErrorKind};
+use std::{env, fs};
+use std::{io, io::prelude::*, io::Error, io::ErrorKind};
 
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
@@ -33,7 +34,12 @@ struct Op {
 // perform on the toml file. Returns either "success" or
 // a message that starts with "error".
 fn main() {
-    let dotreplit_filepath = ".replit";
+    let default_dotreplit_filepath = ".replit";
+    let mut args = env::args();
+
+    let dotreplit_filepath = args
+        .nth(1)
+        .unwrap_or_else(|| default_dotreplit_filepath.to_string());
 
     // read line by line from stdin until eof
     let stdin = io::stdin();
@@ -51,10 +57,10 @@ fn main() {
 
                 // we need to re-read the file each time since the user might manually edit the
                 // file and so we need to make sure we have the most up to date version.
-                let dotreplit_contents = match fs::read_to_string(dotreplit_filepath) {
+                let dotreplit_contents = match fs::read_to_string(&dotreplit_filepath) {
                     Ok(contents) => contents,
                     Err(_) => {
-                        println!("error: could not read file");
+                        println!("error: could not read file {}", dotreplit_filepath);
                         continue;
                     }
                 };
@@ -87,7 +93,7 @@ fn main() {
                 }
 
                 // write the file back to disk
-                match fs::write(dotreplit_filepath, doc.to_string()) {
+                match fs::write(&dotreplit_filepath, doc.to_string()) {
                     Ok(_) => println!("success"),
                     Err(_) => println!("error: could not write to file"),
                 }
