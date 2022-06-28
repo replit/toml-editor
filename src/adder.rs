@@ -1,11 +1,18 @@
-use std::{io::Error, io::ErrorKind};
-use serde_json::{from_str, Value as JValue};
 use crate::converter::json_to_toml;
 use crate::field_finder::{get_field, TomlValue};
-use toml_edit::{Item, Document, Array, ArrayOfTables, Value, InlineTable, Table};
+use serde_json::{from_str, Value as JValue};
+use std::{io::Error, io::ErrorKind};
+use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Item, Table, Value};
 
-pub fn handle_add(field: String, value_opt: Option<String>, doc: &mut Document) -> Result<(), Error> {
-    let mut path_split = field.split('/').map(|s| s.to_string()).collect::<Vec<String>>();
+pub fn handle_add(
+    field: String,
+    value_opt: Option<String>,
+    doc: &mut Document,
+) -> Result<(), Error> {
+    let mut path_split = field
+        .split('/')
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
 
     let last_field = match path_split.pop() {
         Some(last_field) => last_field.to_string(),
@@ -19,8 +26,8 @@ pub fn handle_add(field: String, value_opt: Option<String>, doc: &mut Document) 
 
     if value_opt.is_none() {
         return Err(Error::new(
-                ErrorKind::Other,
-                "Expected value to be none null"
+            ErrorKind::Other,
+            "Expected value to be none null",
         ));
     }
     let value = value_opt.unwrap();
@@ -30,7 +37,7 @@ pub fn handle_add(field: String, value_opt: Option<String>, doc: &mut Document) 
         Err(_) => {
             return Err(Error::new(
                 ErrorKind::Other,
-                "error: value field in add request is not json"
+                "error: value field in add request is not json",
             ));
         }
     };
@@ -40,7 +47,7 @@ pub fn handle_add(field: String, value_opt: Option<String>, doc: &mut Document) 
         TomlValue::Table(_) => false,
         TomlValue::Array(_) => true,
         TomlValue::InlineTable(_) => true,
-        TomlValue::Value(_) => true
+        TomlValue::Value(_) => true,
     };
 
     let field_value_toml: Item = match json_to_toml(&field_value_json, is_inline) {
@@ -48,14 +55,16 @@ pub fn handle_add(field: String, value_opt: Option<String>, doc: &mut Document) 
         Err(_) => {
             return Err(Error::new(
                 ErrorKind::Other,
-                "error: value field in add request cannot be converted to toml"
+                "error: value field in add request cannot be converted to toml",
             ));
         }
     };
 
     match final_field_value {
         TomlValue::Table(table) => add_in_table(table, last_field, field_value_toml),
-        TomlValue::ArrayOfTables(array) => add_in_array_of_tables(array, last_field, field_value_toml),
+        TomlValue::ArrayOfTables(array) => {
+            add_in_array_of_tables(array, last_field, field_value_toml)
+        }
         TomlValue::Array(array) => add_in_array(array, last_field, field_value_toml),
         TomlValue::InlineTable(table) => add_in_inline_table(table, last_field, field_value_toml),
         TomlValue::Value(value) => add_in_generic_value(value, last_field, field_value_toml),
@@ -67,7 +76,11 @@ fn add_in_table(table: &mut Table, last_field: String, toml: Item) -> Result<(),
     Ok(())
 }
 
-fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: String, toml: Item) -> Result<(), Error> {
+fn add_in_array_of_tables(
+    array: &mut ArrayOfTables,
+    last_field: String,
+    toml: Item,
+) -> Result<(), Error> {
     let insert_at_index = match last_field.parse::<usize>() {
         Ok(index) => index,
         Err(_) => {
@@ -95,7 +108,7 @@ fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: String, toml: I
 
                 *table_to_modify = table;
             }
-        },
+        }
         _ => {
             return Err(Error::new(
                 ErrorKind::Other,
@@ -107,18 +120,24 @@ fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: String, toml: I
     Ok(())
 }
 
-fn add_in_inline_table(table: &mut InlineTable, last_field: String, toml: Item) -> Result<(), Error> {
+fn add_in_inline_table(
+    table: &mut InlineTable,
+    last_field: String,
+    toml: Item,
+) -> Result<(), Error> {
     // since we requested inline toml, this should be a value
     match toml {
         Item::Value(value) => {
             match table.insert(last_field.as_str(), value) {
-                Some(_) => {},
-                None => return Err(Error::new(
-                    ErrorKind::Other,
-                    "error: could not insert value into inline table",
-                )),
+                Some(_) => {}
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::Other,
+                        "error: could not insert value into inline table",
+                    ))
+                }
             };
-        },
+        }
         _ => {
             return Err(Error::new(
                 ErrorKind::Other,
@@ -159,7 +178,7 @@ fn add_in_array(array: &mut Array, last_field: String, toml: Item) -> Result<(),
 
                 *value_to_modify = value;
             }
-        },
+        }
         _ => {
             return Err(Error::new(
                 ErrorKind::Other,
@@ -171,7 +190,11 @@ fn add_in_array(array: &mut Array, last_field: String, toml: Item) -> Result<(),
     Ok(())
 }
 
-fn add_in_generic_value(generic_value: &mut Value, last_field: String, toml: Item) -> Result<(), Error> {
+fn add_in_generic_value(
+    generic_value: &mut Value,
+    last_field: String,
+    toml: Item,
+) -> Result<(), Error> {
     match generic_value {
         Value::InlineTable(table) => add_in_inline_table(table, last_field, toml),
         Value::Array(array) => add_in_array(array, last_field, toml),
@@ -190,7 +213,7 @@ mod adder_tests {
     use toml_edit::{Document, TomlError};
 
     fn get_dotreplit_content_with_formatting() -> Result<Document, TomlError> {
-r#"test = "yo"
+        r#"test = "yo"
 [foo]
   bar = "baz"  # comment
   inlineTable = {a = "b", c = "d" }
@@ -205,7 +228,9 @@ r#"test = "yo"
     [[foo.arr]]
         glub = "group"
 [[foo.arr]]
-        none = "all""#.to_string().parse::<Document>()
+        none = "all""#
+            .to_string()
+            .parse::<Document>()
     }
 
     macro_rules! add_test {
@@ -225,9 +250,9 @@ r#"test = "yo"
     }
 
     add_test!(
-        add_to_toml_basic, 
-        "new", 
-        "\"yo\"", 
+        add_to_toml_basic,
+        "new",
+        "\"yo\"",
         get_dotreplit_content_with_formatting().unwrap(),
         r#"
 test = "yo"
@@ -252,8 +277,8 @@ new = "yo"
 
     add_test!(
         add_to_toml_deep,
-        "foo/bla/new", 
-        "\"yo\"", 
+        "foo/bla/new",
+        "\"yo\"",
         get_dotreplit_content_with_formatting().unwrap(),
         r#"
 test = "yo"

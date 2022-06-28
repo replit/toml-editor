@@ -1,5 +1,5 @@
 use std::{io::Error, io::ErrorKind};
-use toml_edit::{Document, Item, Value, Table, Array, InlineTable, ArrayOfTables};
+use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Item, Table, Value};
 
 pub enum TomlValue<'a> {
     Table(&'a mut Table),
@@ -9,13 +9,22 @@ pub enum TomlValue<'a> {
     ArrayOfTables(&'a mut ArrayOfTables),
 }
 
-pub fn get_field<'a>(path: &[String], last_field: &String, doc: &'a mut Document) -> Result<TomlValue<'a>, Error> {
+pub fn get_field<'a>(
+    path: &[String],
+    last_field: &String,
+    doc: &'a mut Document,
+) -> Result<TomlValue<'a>, Error> {
     let current_table = doc.as_table_mut();
 
     descend_table(current_table, path, false, last_field)
 }
 
-fn descend_table<'a>(table: &'a mut Table, path: &[String], insert_if_not_exists: bool, last_field: &String) -> Result<TomlValue<'a>, Error> {
+fn descend_table<'a>(
+    table: &'a mut Table,
+    path: &[String],
+    insert_if_not_exists: bool,
+    last_field: &String,
+) -> Result<TomlValue<'a>, Error> {
     let segment = match path.get(0) {
         Some(segment) => segment,
         None => return Ok(TomlValue::Table(table)),
@@ -33,20 +42,33 @@ fn descend_table<'a>(table: &'a mut Table, path: &[String], insert_if_not_exists
     descend_item(val, &path[1..], insert_if_not_exists, last_field)
 }
 
-fn descend_item<'a>(item: &'a mut Item, path: &[String], insert_if_not_exists: bool, last_field: &String) -> Result<TomlValue<'a>, Error> {
+fn descend_item<'a>(
+    item: &'a mut Item,
+    path: &[String],
+    insert_if_not_exists: bool,
+    last_field: &String,
+) -> Result<TomlValue<'a>, Error> {
     match item {
         Item::Table(table) => descend_table(table, path, insert_if_not_exists, last_field),
         Item::Value(value) => descend_value(value, path, insert_if_not_exists, last_field),
-        Item::ArrayOfTables(array) => descend_array_of_tables(array, path, insert_if_not_exists, last_field),
+        Item::ArrayOfTables(array) => {
+            descend_array_of_tables(array, path, insert_if_not_exists, last_field)
+        }
         _ => Err(Error::new(ErrorKind::Other, "Unsupported item format")),
     }
 }
 
-
-fn descend_value<'a>(value: &'a mut Value, path: &[String], insert_if_not_exists: bool, last_field: &String) -> Result<TomlValue<'a>, Error> {
+fn descend_value<'a>(
+    value: &'a mut Value,
+    path: &[String],
+    insert_if_not_exists: bool,
+    last_field: &String,
+) -> Result<TomlValue<'a>, Error> {
     match value {
         Value::Array(array) => descend_array(array, path, insert_if_not_exists, last_field),
-        Value::InlineTable(table) => descend_inline_table(table, path, insert_if_not_exists, last_field),
+        Value::InlineTable(table) => {
+            descend_inline_table(table, path, insert_if_not_exists, last_field)
+        }
         _ => {
             // if no more path, then this is the last item that we want
             if path.is_empty() {
@@ -54,11 +76,16 @@ fn descend_value<'a>(value: &'a mut Value, path: &[String], insert_if_not_exists
             } else {
                 Err(Error::new(ErrorKind::Other, "Unsupported value format"))
             }
-        } 
+        }
     }
 }
 
-fn descend_array_of_tables<'a>(array: &'a mut ArrayOfTables, path: &[String], insert_if_not_exists: bool, last_field: &String) -> Result<TomlValue<'a>, Error> {
+fn descend_array_of_tables<'a>(
+    array: &'a mut ArrayOfTables,
+    path: &[String],
+    insert_if_not_exists: bool,
+    last_field: &String,
+) -> Result<TomlValue<'a>, Error> {
     let segment = match path.get(0) {
         Some(segment) => segment,
         None => return Ok(TomlValue::ArrayOfTables(array)),
@@ -66,7 +93,12 @@ fn descend_array_of_tables<'a>(array: &'a mut ArrayOfTables, path: &[String], in
 
     let array_index = match segment.parse::<usize>() {
         Ok(index) => index,
-        Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Could not parse segment as array index")),
+        Err(_) => {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Could not parse segment as array index",
+            ))
+        }
     };
 
     // if array index is one larger than the current array length, then we need to add a new table
@@ -80,7 +112,12 @@ fn descend_array_of_tables<'a>(array: &'a mut ArrayOfTables, path: &[String], in
 
     let tbl = match array.get_mut(array_index) {
         Some(tbl) => tbl,
-        None => return Err(Error::new(ErrorKind::NotFound, "Could not find array index")),
+        None => {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "Could not find array index",
+            ))
+        }
     };
 
     descend_table(tbl, &path[1..], insert_if_not_exists, last_field)
@@ -96,7 +133,12 @@ fn get_last_field_container(last_field: &String) -> Value {
     }
 }
 
-fn descend_inline_table<'a>(inline_table: &'a mut InlineTable, path: &[String], insert_if_not_exists: bool, last_field: &String) -> Result<TomlValue<'a>, Error> {
+fn descend_inline_table<'a>(
+    inline_table: &'a mut InlineTable,
+    path: &[String],
+    insert_if_not_exists: bool,
+    last_field: &String,
+) -> Result<TomlValue<'a>, Error> {
     let segment = match path.get(0) {
         Some(segment) => segment,
         None => return Ok(TomlValue::InlineTable(inline_table)),
@@ -114,7 +156,12 @@ fn descend_inline_table<'a>(inline_table: &'a mut InlineTable, path: &[String], 
     descend_value(val, &path[1..], insert_if_not_exists, last_field)
 }
 
-fn descend_array<'a>(array: &'a mut Array, path: &[String], insert_if_not_exists: bool, last_field: &String) -> Result<TomlValue<'a>, Error> {
+fn descend_array<'a>(
+    array: &'a mut Array,
+    path: &[String],
+    insert_if_not_exists: bool,
+    last_field: &String,
+) -> Result<TomlValue<'a>, Error> {
     let segment = match path.get(0) {
         Some(segment) => segment,
         None => return Ok(TomlValue::Array(array)),
@@ -122,7 +169,12 @@ fn descend_array<'a>(array: &'a mut Array, path: &[String], insert_if_not_exists
 
     let array_index = match segment.parse::<usize>() {
         Ok(index) => index,
-        Err(_) => return Err(Error::new(ErrorKind::InvalidData, "Could not parse segment as array index")),
+        Err(_) => {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "Could not parse segment as array index",
+            ))
+        }
     };
 
     if array_index == array.len() {
@@ -131,11 +183,16 @@ fn descend_array<'a>(array: &'a mut Array, path: &[String], insert_if_not_exists
         } else {
             return Err(Error::new(ErrorKind::Other, "Path does not exist"));
         }
-    } 
+    }
 
     let val = match array.get_mut(array_index) {
         Some(val) => val,
-        None => return Err(Error::new(ErrorKind::NotFound, "Could not find array index")),
+        None => {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "Could not find array index",
+            ))
+        }
     };
 
     descend_value(val, &path[1..], insert_if_not_exists, last_field)
@@ -157,7 +214,7 @@ bla = "bla"
 "#;
 
         let mut doc = doc_string.parse::<Document>().unwrap();
-        let val = get_field(&(vec!("foo".to_string())), &"bar".to_string(), &mut doc).unwrap();
+        let val = get_field(&(vec!["foo".to_string()]), &"bar".to_string(), &mut doc).unwrap();
 
         if let TomlValue::Table(table) = val {
             assert!(table.contains_key("bar"));
@@ -170,7 +227,7 @@ bla = "bla"
     fn insert_inline_array() {
         let doc_string = r#"test = [ 1 ]"#;
         let mut doc = doc_string.parse::<Document>().unwrap();
-        let fields = ["test".to_string(), ];
+        let fields = ["test".to_string()];
         let val = get_field(&(fields), &"1".to_string(), &mut doc).unwrap();
 
         if let TomlValue::Array(array) = val {
@@ -189,7 +246,7 @@ foo = "bar"
 foo = "baz"
 "#;
         let mut doc = doc_string.parse::<Document>().unwrap();
-        let fields = ["test".to_string(), ];
+        let fields = ["test".to_string()];
         let val = get_field(&(fields), &"2".to_string(), &mut doc).unwrap();
 
         if let TomlValue::ArrayOfTables(array) = val {
@@ -199,4 +256,3 @@ foo = "baz"
         }
     }
 }
-

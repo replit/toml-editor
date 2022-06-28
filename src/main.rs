@@ -1,7 +1,7 @@
-mod field_finder;
-mod converter;
-mod remover;
 mod adder;
+mod converter;
+mod field_finder;
+mod remover;
 
 extern crate serde_json;
 extern crate toml_edit;
@@ -9,13 +9,13 @@ extern crate toml_edit;
 use std::{fs, io, io::prelude::*, io::Error, io::ErrorKind};
 
 use serde::{Deserialize, Serialize};
-use toml_edit::Document;
 use serde_json::from_str;
+use toml_edit::Document;
 
 // use crate::field_finder::{get_field, TomlValue};
 // use crate::converter::json_serde_to_toml;
-use crate::remover::handle_remove;
 use crate::adder::handle_add;
+use crate::remover::handle_remove;
 
 /**
  *  we have two operations we can do on the toml file:
@@ -86,18 +86,17 @@ fn main() {
                 if error_encountered {
                     println!("error: could not perform some dotreplit op");
                     continue;
-                } 
+                }
 
                 // write the file back to disk
                 match fs::write(dotreplit_filepath, doc.to_string()) {
                     Ok(_) => println!("success"),
                     Err(_) => println!("error: could not write to file"),
                 }
-            },
+            }
             Err(_) => {
                 println!("error: could not read line");
             }
         }
     }
 }
-

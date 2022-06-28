@@ -1,7 +1,7 @@
 use std::{io::Error, io::ErrorKind};
 
 use serde_json::Value as JValue;
-use toml_edit::{ArrayOfTables, value, Table, Array, Item, Value, InlineTable};
+use toml_edit::{value, Array, ArrayOfTables, InlineTable, Item, Table, Value};
 
 // converts json objects to toml objects
 pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item, Error> {
@@ -63,7 +63,11 @@ fn create_toml_block_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
 }
 
 fn create_toml_table(items: Vec<(String, Item)>, inline: bool) -> Result<Item, Error> {
-    if inline { create_toml_inline_table(items) } else { create_toml_block_table(items) }
+    if inline {
+        create_toml_inline_table(items)
+    } else {
+        create_toml_block_table(items)
+    }
 }
 
 fn every_item_is_table(items: &Vec<Item>) -> bool {
@@ -79,7 +83,11 @@ fn every_item_is_table(items: &Vec<Item>) -> bool {
 }
 
 fn create_toml_array(items: Vec<Item>, inline: bool) -> Result<Item, Error> {
-    if !inline && every_item_is_table(&items) { create_toml_array_of_tables(items) } else { create_toml_inline_array(items) }
+    if !inline && every_item_is_table(&items) {
+        create_toml_array_of_tables(items)
+    } else {
+        create_toml_inline_array(items)
+    }
 }
 
 fn create_toml_inline_array(items: Vec<Item>) -> Result<Item, Error> {
@@ -87,7 +95,12 @@ fn create_toml_inline_array(items: Vec<Item>) -> Result<Item, Error> {
     for item in items {
         match item {
             Item::Value(v) => output_array.push(v),
-            _ => return Err(Error::new(ErrorKind::Other, "error: could not create inline array")),
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "error: could not create inline array",
+                ))
+            }
         }
     }
 
@@ -100,7 +113,12 @@ fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item, Error> {
     for item in items {
         match item {
             Item::Table(t) => output_array.push(t),
-            _ => return Err(Error::new(ErrorKind::Other, "error: could not create array of tables")),   
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    "error: could not create array of tables",
+                ))
+            }
         }
     }
 
@@ -109,7 +127,7 @@ fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item, Error> {
 
 #[cfg(test)]
 mod converter_tests {
-    use super::*; 
+    use super::*;
     use serde_json::{from_str, Value as JValue};
     use toml_edit::Document;
 
@@ -149,7 +167,10 @@ mod converter_tests {
         let json: JValue = from_str(json_string).unwrap();
         let toml = json_to_toml(&json, true).unwrap();
         let res = toml.to_string();
-        assert_eq!(res.trim(), "{ arr = [{ a = 1.0, b = 2.0 }, { a = 3.0, b = 4.0 }], who = 123.0 }".trim());
+        assert_eq!(
+            res.trim(),
+            "{ arr = [{ a = 1.0, b = 2.0 }, { a = 3.0, b = 4.0 }], who = 123.0 }".trim()
+        );
     }
 
     #[test]

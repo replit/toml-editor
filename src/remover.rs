@@ -1,9 +1,12 @@
-use std::{io::Error, io::ErrorKind};
 use crate::field_finder::{get_field, TomlValue};
-use toml_edit::{Document, Array, ArrayOfTables, InlineTable, Table};
+use std::{io::Error, io::ErrorKind};
+use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Table};
 
 pub fn handle_remove(field: String, doc: &mut Document) -> Result<(), Error> {
-    let mut path_split = field.split('/').map(|s| s.to_string()).collect::<Vec<String>>();
+    let mut path_split = field
+        .split('/')
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
 
     let last_field = match path_split.pop() {
         Some(last_field) => last_field.to_string(),
@@ -25,7 +28,7 @@ pub fn handle_remove(field: String, doc: &mut Document) -> Result<(), Error> {
                 ErrorKind::Other,
                 "error: cannot remove_in non array/table value",
             ));
-        },
+        }
     }
 }
 
@@ -69,14 +72,13 @@ fn remove_in_inline_table(inline_table: &mut InlineTable, last_field: String) ->
     Ok(())
 }
 
-
 #[cfg(test)]
 mod remover_tests {
     use super::*;
     use toml_edit::{Document, TomlError};
 
     fn get_dotreplit_content() -> Result<Document, TomlError> {
-r#"test = "yo"
+        r#"test = "yo"
 [foo]
 bar = "baz"
 [foo.bla]
@@ -86,11 +88,13 @@ glub = "glub"
 [[foo.arr]]
 glub = "group"
 [[foo.arr]]
-none = "all""#.to_string().parse::<Document>()
+none = "all""#
+            .to_string()
+            .parse::<Document>()
     }
 
     fn get_dotreplit_content_with_formatting() -> Result<Document, TomlError> {
-r#"test = "yo"
+        r#"test = "yo"
 [foo]
   bar = "baz"  # comment
 [foo.bla]
@@ -103,7 +107,9 @@ r#"test = "yo"
     [[foo.arr]]
         glub = "group"
 [[foo.arr]]
-        none = "all""#.to_string().parse::<Document>()
+        none = "all""#
+            .to_string()
+            .parse::<Document>()
     }
 
     macro_rules! remove_test {
@@ -118,9 +124,9 @@ r#"test = "yo"
     }
 
     remove_test!(
-        test_remove_basic, 
-        "foo/bar", 
-        get_dotreplit_content().unwrap(), 
+        test_remove_basic,
+        "foo/bar",
+        get_dotreplit_content().unwrap(),
         r#"
 test = "yo"
 [foo]
@@ -135,9 +141,9 @@ none = "all""#
     );
 
     remove_test!(
-        test_remove_array_index, 
-        "foo/arr/0", 
-        get_dotreplit_content().unwrap(), 
+        test_remove_array_index,
+        "foo/arr/0",
+        get_dotreplit_content().unwrap(),
         r#"
 test = "yo"
 [foo]
@@ -189,7 +195,8 @@ glub = "group"
 # comment there
 
     [[foo.arr]]
-        glub = "group""#);
+        glub = "group""#
+    );
 
     remove_test!(
         test_remove_inline_array,
@@ -201,7 +208,9 @@ glub = "group"
     remove_test!(
         test_remove_inline_table,
         "tbl/bla",
-        "tbl = { bla = \"bar\", blue = 123 } # go go".parse::<Document>().unwrap(),
+        "tbl = { bla = \"bar\", blue = 123 } # go go"
+            .parse::<Document>()
+            .unwrap(),
         "tbl = { blue = 123 } # go go"
     );
 }
