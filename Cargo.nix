@@ -451,7 +451,7 @@ rec {
       };
       "toml-editor" = rec {
         crateName = "toml-editor";
-        version = "0.3.0";
+        version = "0.4.0";
         edition = "2018";
         crateBin = [
           { name = "toml-editor"; path = "src/main.rs"; }

@@ -22,12 +22,11 @@ use crate::remover::handle_remove;
  *  2. remove field - removes the field if it exists
  */
 
-#[allow(non_snake_case)]
 #[derive(Serialize, Deserialize)]
 struct Op {
-    Op: String,
-    Path: String,
-    Value: Option<String>,
+    op: String,
+    path: String,
+    value: Option<String>,
 }
 
 // Reads from stdin a json that describes what operation to
@@ -42,7 +41,7 @@ fn main() {
         .unwrap_or_else(|| default_dotreplit_filepath.to_string());
 
     if arg1 == "--info" {
-        println!("Version: 0.3.0");
+        println!("Version: 0.4.0");
         return;
     }
 
@@ -82,9 +81,9 @@ fn main() {
 
                 let mut error_encountered: bool = false;
                 for op in json {
-                    let op_res = match op.Op.as_str() {
-                        "add" => handle_add(op.Path, op.Value, &mut doc),
-                        "remove" => handle_remove(op.Path, &mut doc),
+                    let op_res = match op.op.as_str() {
+                        "add" => handle_add(op.path, op.value, &mut doc),
+                        "remove" => handle_remove(op.path, &mut doc),
                         _ => Err(Error::new(ErrorKind::Other, "Unexpected op type")),
                     };
 
