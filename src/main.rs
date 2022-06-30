@@ -88,7 +88,6 @@ fn main() {
                     };
 
                     if op_res.is_err() {
-                        println!("error: {}", op_res.unwrap_err());
                         error_encountered = true;
                     }
                 }
