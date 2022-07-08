@@ -16,7 +16,7 @@ pub fn get_field<'a>(
 ) -> Result<TomlValue<'a>, Error> {
     let current_table = doc.as_table_mut();
 
-    descend_table(current_table, path, false, last_field)
+    descend_table(current_table, path, true, last_field)
 }
 
 fn descend_table<'a>(

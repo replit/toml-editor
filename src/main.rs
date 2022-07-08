@@ -80,6 +80,7 @@ fn main() {
                 };
 
                 let mut error_encountered: bool = false;
+                let mut errors: Vec<String> = Vec::new();
                 for op in json {
                     let op_res = match op.op.as_str() {
                         "add" => handle_add(op.path, op.value, &mut doc),
@@ -89,11 +90,12 @@ fn main() {
 
                     if op_res.is_err() {
                         error_encountered = true;
+                        errors.push(op_res.unwrap_err().to_string());
                     }
                 }
 
                 if error_encountered {
-                    println!("error: could not perform some dotreplit op");
+                    println!("error: could not perform some dotreplit op - {}", errors.join("|"));
                     continue;
                 }
 
