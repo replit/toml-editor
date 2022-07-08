@@ -41,7 +41,7 @@ fn main() {
         .unwrap_or_else(|| default_dotreplit_filepath.to_string());
 
     if arg1 == "--info" {
-        println!("Version: 0.4.1");
+        println!("Version: {}", env!("CARGO_PKG_VERSION"));
         return;
     }
 
