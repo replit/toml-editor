@@ -13,9 +13,18 @@ pub fn handle_remove(field: String, doc: &mut Document) -> Result<(), Error> {
         None => return Err(Error::new(ErrorKind::Other, "Path is empty")),
     };
 
-    let field = match get_field(&path_split, &last_field, doc) {
+    let insert_if_not_exists = false;
+    let field = match get_field(&path_split, &last_field, insert_if_not_exists, doc) {
         Ok(field) => field,
-        Err(e) => return Err(e),
+        Err(e) => {
+            if e.kind() == ErrorKind::NotFound {
+                // if you can't find the field then it's already gone
+                // so we don't need to remove it or do anything else
+                return Ok(());
+            } else {
+                return Err(e);
+            }
+        }
     };
 
     match field {
@@ -210,5 +219,16 @@ glub = "group"
             .parse::<Document>()
             .unwrap(),
         "tbl = { blue = 123 } # go go"
+    );
+
+    remove_test!(
+        test_remove_missing_early,
+        "foo/bar/baz/boop",
+        "[foo]
+        yup = 123"
+            .parse::<Document>()
+            .unwrap(),
+        "[foo]
+        yup = 123"
     );
 }

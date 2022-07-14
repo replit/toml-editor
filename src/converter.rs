@@ -234,7 +234,6 @@ b = [2, 3, 4]
         let json: JValue = from_str("1.4").unwrap();
         let toml = json_to_toml(&json, true).unwrap();
         let res = toml.to_string();
-        assert_eq!(res, "1.4"); 
+        assert_eq!(res, "1.4");
     }
-
 }

@@ -12,11 +12,12 @@ pub enum TomlValue<'a> {
 pub fn get_field<'a>(
     path: &[String],
     last_field: &String,
+    insert_if_not_exists: bool,
     doc: &'a mut Document,
 ) -> Result<TomlValue<'a>, Error> {
     let current_table = doc.as_table_mut();
 
-    descend_table(current_table, path, true, last_field)
+    descend_table(current_table, path, insert_if_not_exists, last_field)
 }
 
 fn descend_table<'a>(
@@ -31,11 +32,23 @@ fn descend_table<'a>(
     };
 
     let val = if insert_if_not_exists {
-        table[segment].or_insert(toml_edit::table())
+        // if next segment exists and is an integer insert array of tables
+        let insert_array_of_tables = match path.get(1) {
+            Some(segment) => segment.parse::<usize>().is_ok(),
+            None => last_field.parse::<usize>().is_ok(),
+        };
+
+        let to_insert_as_backup = if insert_array_of_tables {
+            toml_edit::array()
+        } else {
+            toml_edit::table()
+        };
+
+        table[segment].or_insert(to_insert_as_backup)
     } else {
         match table.get_mut(segment) {
             Some(val) => val,
-            None => return Err(Error::new(ErrorKind::Other, "Path does not exist")),
+            None => return Err(Error::new(ErrorKind::NotFound, "Path does not exist")),
         }
     };
 
@@ -74,7 +87,10 @@ fn descend_value<'a>(
             if path.is_empty() {
                 Ok(TomlValue::Value(value))
             } else {
-                Err(Error::new(ErrorKind::Other, "Unsupported value format"))
+                Err(Error::new(
+                    ErrorKind::Other,
+                    "Adding into unsupported generic value",
+                ))
             }
         }
     }
@@ -214,7 +230,13 @@ bla = "bla"
 "#;
 
         let mut doc = doc_string.parse::<Document>().unwrap();
-        let val = get_field(&(vec!["foo".to_string()]), &"bar".to_string(), &mut doc).unwrap();
+        let val = get_field(
+            &(vec!["foo".to_string()]),
+            &"bar".to_string(),
+            true,
+            &mut doc,
+        )
+        .unwrap();
 
         if let TomlValue::Table(table) = val {
             assert!(table.contains_key("bar"));
@@ -228,7 +250,7 @@ bla = "bla"
         let doc_string = r#"test = [ 1 ]"#;
         let mut doc = doc_string.parse::<Document>().unwrap();
         let fields = ["test".to_string()];
-        let val = get_field(&(fields), &"1".to_string(), &mut doc).unwrap();
+        let val = get_field(&(fields), &"1".to_string(), true, &mut doc).unwrap();
 
         if let TomlValue::Array(array) = val {
             assert_eq!(array.len(), 1);
@@ -247,7 +269,7 @@ foo = "baz"
 "#;
         let mut doc = doc_string.parse::<Document>().unwrap();
         let fields = ["test".to_string()];
-        let val = get_field(&(fields), &"2".to_string(), &mut doc).unwrap();
+        let val = get_field(&(fields), &"2".to_string(), true, &mut doc).unwrap();
 
         if let TomlValue::ArrayOfTables(array) = val {
             assert_eq!(array.len(), 2);

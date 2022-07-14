@@ -19,7 +19,8 @@ pub fn handle_add(
         None => return Err(Error::new(ErrorKind::Other, "Path is empty")),
     };
 
-    let final_field_value = match get_field(&path_split, &last_field, doc) {
+    let insert_if_not_exists = true;
+    let final_field_value = match get_field(&path_split, &last_field, insert_if_not_exists, doc) {
         Ok(final_field) => final_field,
         Err(_) => return Err(Error::new(ErrorKind::Other, "Could not find field")),
     };
@@ -231,116 +232,6 @@ mod adder_tests {
             .parse::<Document>()
     }
 
-    fn python_dotreplit() -> Result<Document, TomlError> {
-        r#"# The command that runs the program. Commented out because it is not run when the interpreter command is set
-# run = ["python3", "main.py"]
-# The primary language of the repl. There can be others, though!
-language = "python3"
-entrypoint = "main.py"
-hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
-audio = true
-
-# Specifies which nix channel to use when building the environment.
-[nix]
-channel = "stable-21_11"
-
-# Per-language configuration: python3
-[languages.python3]
-# Treats all files that end with `.py` as Python.
-pattern = "**/*.py"
-# Tells the workspace editor to syntax-highlight these files as
-# Python.
-syntax = "python"
-
-  # The command needed to start the Language Server Protocol. For
-  # linting and formatting.
-  [languages.python3.languageServer]
-  start = ["pylsp"]
-
-# The command to start the interpreter.
-[interpreter]
-  [interpreter.command]
-  args = [
-    "stderred",
-    "--",
-    "prybar-python3",
-    "-q",
-    "--ps1",
-    "\u0001\u001b[33m\u0002\u0001\u001b[00m\u0002 ",
-    "-i",
-  ]
-  env = { LD_LIBRARY_PATH = "$PYTHON_LD_LIBRARY_PATH" }
-
-[env]
-MPLBACKEND = "TkAgg"
-PATH = "${VIRTUAL_ENV}/bin"
-PYTHONPATH = "${VIRTUAL_ENV}/lib/python3.8/site-packages"
-REPLIT_POETRY_PYPI_REPOSITORY = "https://package-proxy.replit.com/pypi/"
-VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
-
-# Enable unit tests. This is only supported for a few languages.
-[unitTest]
-language = "java"
-
-# Add a debugger!
-[debugger]
-support = true
-
-  # How to start the debugger.
-  [debugger.interactive]
-  transport = "localhost:0"
-  startCommand = ["dap-python", "main.py"]
-
-    # How to communicate with the debugger.
-    [debugger.interactive.integratedAdapter]
-    dapTcpAddress = "localhost:0"
-
-    # How to tell the debugger to start a debugging session.
-    [debugger.interactive.initializeMessage]
-    command = "initialize"
-    type = "request"
-
-      [debugger.interactive.initializeMessage.arguments]
-      adapterID = "debugpy"
-      clientID = "replit"
-      clientName = "replit.com"
-      columnsStartAt1 = true
-      linesStartAt1 = true
-      locale = "en-us"
-      pathFormat = "path"
-      supportsInvalidatedEvent = true
-      supportsProgressReporting = true
-      supportsRunInTerminalRequest = true
-      supportsVariablePaging = true
-      supportsVariableType = true
-
-    # How to tell the debugger to start the debuggee application.
-    [debugger.interactive.launchMessage]
-    command = "attach"
-    type = "request"
-
-      [debugger.interactive.launchMessage.arguments]
-      logging = {}
-
-# Configures the packager.
-[packager]
-# Search packages in PyPI.
-language = "python3"
-# Never attempt to install `unit_tests`. If there are packages that are being
-# guessed wrongly, add them here.
-ignoredPackages = ["unit_tests"]
-
-  [packager.features]
-  enabledForHosting = false
-  # Enable searching packages from the sidebar.
-  packageSearch = true
-  # Enable guessing what packages are needed from the code.
-  guessImports = true"#
-            .to_string()
-            .parse::<Document>()
-    }
-
-
     macro_rules! add_test {
         ($name:ident, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
             #[test]
@@ -520,146 +411,44 @@ arr = "yup""#
     );
 
     add_test!(
-        add_array_objects,
-        "foo/0",
-        r#"{"hi": 123}"#,
+        add_array_objects_deep,
+        "foo/0/hi",
+        r#"123"#,
         r#"top = "hi""#.parse::<Document>().unwrap(),
         r#"top = "hi"
+
 [[foo]]
 hi = 123
 "#
     );
 
     add_test!(
-        override_existing,
-        "foo/bar",
-        r#""yup""#,
-        r#"foo = "noop""#.parse::<Document>().unwrap(),
-        r#"[foo]
-bar = "yup""#
+        add_array_objects,
+        "foo/0",
+        r#"{"hi": 123}"#,
+        r#"top = "hi""#.parse::<Document>().unwrap(),
+        r#"top = "hi"
+
+[[foo]]
+hi = 123
+"#
     );
 
     add_test!(
-        deep_override_existing,
-        "foo/bar/baz",
-        r#""yup""#,
-        r#"foo = "noop""#.parse::<Document>().unwrap(),
-        r#"[foo]
-bar = "yup""#
-    );
+        add_another_array_object,
+        "foo/1",
+        r#"{"hi": 1234}"#,
+        r#"top = "hi"
+[[foo]]
+hi = 123"#
+            .parse::<Document>()
+            .unwrap(),
+        r#"top = "hi"
+[[foo]]
+hi = 123
 
-
-    add_test!(
-        hosting,
-        "hosting/route",
-        r#""hiiii""#,
-        python_dotreplit().unwrap(),
-        r#"# The command that runs the program. Commented out because it is not run when the interpreter command is set
-# run = ["python3", "main.py"]
-# The primary language of the repl. There can be others, though!
-language = "python3"
-entrypoint = "main.py"
-hidden = ["venv", ".config", "**/__pycache__", "**/.mypy_cache", "**/*.pyc"]
-audio = true
-
-# Specifies which nix channel to use when building the environment.
-[nix]
-channel = "stable-21_11"
-
-# Per-language configuration: python3
-[languages.python3]
-# Treats all files that end with `.py` as Python.
-pattern = "**/*.py"
-# Tells the workspace editor to syntax-highlight these files as
-# Python.
-syntax = "python"
-
-  # The command needed to start the Language Server Protocol. For
-  # linting and formatting.
-  [languages.python3.languageServer]
-  start = ["pylsp"]
-
-# The command to start the interpreter.
-[interpreter]
-  [interpreter.command]
-  args = [
-    "stderred",
-    "--",
-    "prybar-python3",
-    "-q",
-    "--ps1",
-    "\u0001\u001b[33m\u0002\u0001\u001b[00m\u0002 ",
-    "-i",
-  ]
-  env = { LD_LIBRARY_PATH = "$PYTHON_LD_LIBRARY_PATH" }
-
-[env]
-MPLBACKEND = "TkAgg"
-PATH = "${VIRTUAL_ENV}/bin"
-PYTHONPATH = "${VIRTUAL_ENV}/lib/python3.8/site-packages"
-REPLIT_POETRY_PYPI_REPOSITORY = "https://package-proxy.replit.com/pypi/"
-VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
-
-# Enable unit tests. This is only supported for a few languages.
-[unitTest]
-language = "java"
-
-# Add a debugger!
-[debugger]
-support = true
-
-  # How to start the debugger.
-  [debugger.interactive]
-  transport = "localhost:0"
-  startCommand = ["dap-python", "main.py"]
-
-    # How to communicate with the debugger.
-    [debugger.interactive.integratedAdapter]
-    dapTcpAddress = "localhost:0"
-
-    # How to tell the debugger to start a debugging session.
-    [debugger.interactive.initializeMessage]
-    command = "initialize"
-    type = "request"
-
-      [debugger.interactive.initializeMessage.arguments]
-      adapterID = "debugpy"
-      clientID = "replit"
-      clientName = "replit.com"
-      columnsStartAt1 = true
-      linesStartAt1 = true
-      locale = "en-us"
-      pathFormat = "path"
-      supportsInvalidatedEvent = true
-      supportsProgressReporting = true
-      supportsRunInTerminalRequest = true
-      supportsVariablePaging = true
-      supportsVariableType = true
-
-    # How to tell the debugger to start the debuggee application.
-    [debugger.interactive.launchMessage]
-    command = "attach"
-    type = "request"
-
-      [debugger.interactive.launchMessage.arguments]
-      logging = {}
-
-# Configures the packager.
-[packager]
-# Search packages in PyPI.
-language = "python3"
-# Never attempt to install `unit_tests`. If there are packages that are being
-# guessed wrongly, add them here.
-ignoredPackages = ["unit_tests"]
-
-  [packager.features]
-  enabledForHosting = false
-  # Enable searching packages from the sidebar.
-  packageSearch = true
-  # Enable guessing what packages are needed from the code.
-  guessImports = true
-
-[hosting]
-route = "hiiii""#
+[[foo]]
+hi = 1234
+"#
     );
 }

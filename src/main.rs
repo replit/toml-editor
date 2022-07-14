@@ -6,7 +6,7 @@ mod remover;
 extern crate serde_json;
 extern crate toml_edit;
 
-use std::{env, fs};
+use std::fs;
 use std::{io, io::prelude::*, io::Error, io::ErrorKind};
 
 use serde::{Deserialize, Serialize};
@@ -16,11 +16,20 @@ use toml_edit::Document;
 use crate::adder::handle_add;
 use crate::remover::handle_remove;
 
+use clap::Parser;
+
 /**
  *  we have two operations we can do on the toml file:
  *  1. add field - creates the field if it doesn't already exist and sets it
  *  2. remove field - removes the field if it exists
  */
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long, value_parser, default_value = ".replit")]
+    path: String,
+}
 
 #[derive(Serialize, Deserialize)]
 struct Op {
@@ -33,19 +42,8 @@ struct Op {
 // perform on the toml file. Returns either "success" or
 // a message that starts with "error".
 fn main() {
-    let default_dotreplit_filepath = ".replit";
-    let mut args = env::args();
-
-    let arg1 = args
-        .nth(1)
-        .unwrap_or_else(|| default_dotreplit_filepath.to_string());
-
-    if arg1 == "--info" {
-        println!("Version: {}", env!("CARGO_PKG_VERSION"));
-        return;
-    }
-
-    let dotreplit_filepath = arg1;
+    let args = Args::parse();
+    let dotreplit_filepath = args.path;
 
     // read line by line from stdin until eof
     let stdin = io::stdin();
@@ -88,14 +86,17 @@ fn main() {
                         _ => Err(Error::new(ErrorKind::Other, "Unexpected op type")),
                     };
 
-                    if op_res.is_err() {
+                    if let Err(err) = op_res {
                         error_encountered = true;
-                        errors.push(op_res.unwrap_err().to_string());
+                        errors.push(err.to_string());
                     }
                 }
 
                 if error_encountered {
-                    println!("error: could not perform some dotreplit op - {}", errors.join("|"));
+                    println!(
+                        "error: could not perform some dotreplit op - {}",
+                        errors.join("|")
+                    );
                     continue;
                 }
 
