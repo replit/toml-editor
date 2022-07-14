@@ -8,9 +8,15 @@ pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item, Error> {
     match json {
         JValue::Null => Ok(Item::None),
         JValue::Bool(b) => Ok(value(*b)),
-        JValue::Number(n) => match n.as_f64() {
-            Some(f) => Ok(value(f)),
-            None => Err(Error::new(ErrorKind::Other, "unsupported number type")),
+        JValue::Number(n) => match n.as_i64() {
+            Some(i) => Ok(value(i)),
+            None => match n.as_f64() {
+                Some(u) => Ok(value(u)),
+                None => Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "JSON number is not an integer or a float",
+                )),
+            },
         },
         JValue::String(s) => Ok(value(s.clone())),
         JValue::Array(a) => {
@@ -136,7 +142,7 @@ mod converter_tests {
         let json: JValue = from_str("[1, 2, 3]").unwrap();
         let toml = json_to_toml(&json, true).unwrap();
         let res = toml.to_string();
-        assert_eq!(res, "[1.0, 2.0, 3.0]");
+        assert_eq!(res, "[1, 2, 3]");
     }
 
     #[test]
@@ -144,7 +150,7 @@ mod converter_tests {
         let json: JValue = from_str("{\"a\": 1, \"b\": 2}").unwrap();
         let toml = json_to_toml(&json, false).unwrap();
         let res = toml.to_string();
-        assert_eq!(res.trim(), "a = 1.0\nb = 2.0".trim());
+        assert_eq!(res.trim(), "a = 1\nb = 2".trim());
     }
 
     #[test]
@@ -152,7 +158,7 @@ mod converter_tests {
         let json: JValue = from_str("{\"a\": 1, \"b\": 2}").unwrap();
         let toml = json_to_toml(&json, true).unwrap();
         let res = toml.to_string();
-        assert_eq!(res.trim(), "{ a = 1.0, b = 2.0 }".trim());
+        assert_eq!(res.trim(), "{ a = 1, b = 2 }".trim());
     }
 
     #[test]
@@ -169,7 +175,7 @@ mod converter_tests {
         let res = toml.to_string();
         assert_eq!(
             res.trim(),
-            "{ arr = [{ a = 1.0, b = 2.0 }, { a = 3.0, b = 4.0 }], who = 123.0 }".trim()
+            "{ arr = [{ a = 1, b = 2 }, { a = 3, b = 4 }], who = 123 }".trim()
         );
     }
 
@@ -187,12 +193,12 @@ mod converter_tests {
 
         let expected = r#"
 [[arr]]
-a = 1.0
-b = 2.0
+a = 1
+b = 2
 
 [[arr]]
-a = 3.0
-b = 4.0
+a = 3
+b = 4
 "#;
 
         assert_eq!(doc.to_string().trim(), expected.trim());
@@ -212,14 +218,23 @@ b = 4.0
 
         let expected = r#"
 [[arr]]
-a = 1.0
-b = [1.0, 2.0, 3.0]
+a = 1
+b = [1, 2, 3]
 
 [[arr]]
-a = 3.0
-b = [2.0, 3.0, 4.0]
+a = 3
+b = [2, 3, 4]
 "#;
 
         assert_eq!(doc.to_string().trim(), expected.trim());
     }
+
+    #[test]
+    fn test_json_to_toml_float() {
+        let json: JValue = from_str("1.4").unwrap();
+        let toml = json_to_toml(&json, true).unwrap();
+        let res = toml.to_string();
+        assert_eq!(res, "1.4"); 
+    }
+
 }

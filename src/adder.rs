@@ -456,7 +456,7 @@ test = "yo"
     [[foo.arr]]
 
 [foo.arr.glub]
-hi = 123.0
+hi = 123
 [[foo.arr]]
         none = "all"
     "#
@@ -469,7 +469,7 @@ hi = 123.0
         get_dotreplit_content_with_formatting().unwrap(),
         r#"
 test = "yo"
-foo = [1.0, 2.0, 3.0]
+foo = [1, 2, 3]
 "#
     );
 
@@ -478,7 +478,7 @@ foo = [1.0, 2.0, 3.0]
         "arr/2",
         "123",
         r#"arr = [1, 2]"#.parse::<Document>().unwrap(),
-        r#"arr = [1, 2, 123.0]"#
+        r#"arr = [1, 2, 123]"#
     );
 
     add_test!(
@@ -518,6 +518,36 @@ test = "yo"
 [foo]
 arr = "yup""#
     );
+
+    add_test!(
+        add_array_objects,
+        "foo/0",
+        r#"{"hi": 123}"#,
+        r#"top = "hi""#.parse::<Document>().unwrap(),
+        r#"top = "hi"
+[[foo]]
+hi = 123
+"#
+    );
+
+    add_test!(
+        override_existing,
+        "foo/bar",
+        r#""yup""#,
+        r#"foo = "noop""#.parse::<Document>().unwrap(),
+        r#"[foo]
+bar = "yup""#
+    );
+
+    add_test!(
+        deep_override_existing,
+        "foo/bar/baz",
+        r#""yup""#,
+        r#"foo = "noop""#.parse::<Document>().unwrap(),
+        r#"[foo]
+bar = "yup""#
+    );
+
 
     add_test!(
         hosting,
