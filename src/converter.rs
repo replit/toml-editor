@@ -1,55 +1,46 @@
-use std::{io::Error, io::ErrorKind};
-
+use anyhow::{bail, Context, Result};
 use serde_json::Value as JValue;
 use toml_edit::{value, Array, ArrayOfTables, InlineTable, Item, Table, Value};
 
 // converts json objects to toml objects
-pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item, Error> {
+pub fn json_to_toml(json: &JValue, inline: bool) -> Result<Item> {
     match json {
         JValue::Null => Ok(Item::None),
         JValue::Bool(b) => Ok(value(*b)),
         JValue::Number(n) => match n.as_i64() {
             Some(i) => Ok(value(i)),
-            None => match n.as_f64() {
-                Some(u) => Ok(value(u)),
-                None => Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "JSON number is not an integer or a float",
-                )),
-            },
+            None => Ok(value(
+                n.as_f64()
+                    .context("JSON number is not an integer or a float")?,
+            )),
         },
         JValue::String(s) => Ok(value(s.clone())),
         JValue::Array(a) => {
             let items = a
                 .iter()
                 .map(|v| json_to_toml(v, inline))
-                .collect::<Result<Vec<Item>, Error>>();
+                .collect::<Result<Vec<Item>, _>>()?;
 
-            match items {
-                Ok(items) => create_toml_array(items, inline),
-                Err(e) => Err(e),
-            }
+            create_toml_array(items, inline)
         }
         JValue::Object(o) => {
             let items = o
                 .iter()
-                .map(|(k, v)| Ok((k.clone(), json_to_toml(v, inline)?)))
-                .collect::<Result<Vec<(String, Item)>, Error>>();
-            match items {
-                Ok(items) => create_toml_table(items, inline),
-                Err(e) => Err(e),
-            }
+                .map(|(k, v)| Result::<_>::Ok((k.clone(), json_to_toml(v, inline)?)))
+                .collect::<Result<Vec<(String, Item)>, _>>()?;
+
+            create_toml_table(items, inline)
         }
     }
 }
 
-fn create_toml_inline_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
+fn create_toml_inline_table(items: Vec<(String, Item)>) -> Result<Item> {
     let mut output_table = InlineTable::new();
 
     for (k, v) in items {
         let item_value = match v {
             Item::Value(v) => v,
-            _ => return Err(Error::new(ErrorKind::Other, "unsupported type")),
+            _ => bail!("unsupported type"),
         };
 
         output_table.insert(k.as_str(), item_value);
@@ -58,7 +49,7 @@ fn create_toml_inline_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
     Ok(Item::Value(Value::InlineTable(output_table)))
 }
 
-fn create_toml_block_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
+fn create_toml_block_table(items: Vec<(String, Item)>) -> Result<Item> {
     let mut output_table = Table::new();
 
     for (k, v) in items {
@@ -68,7 +59,7 @@ fn create_toml_block_table(items: Vec<(String, Item)>) -> Result<Item, Error> {
     Ok(Item::Table(output_table))
 }
 
-fn create_toml_table(items: Vec<(String, Item)>, inline: bool) -> Result<Item, Error> {
+fn create_toml_table(items: Vec<(String, Item)>, inline: bool) -> Result<Item> {
     if inline {
         create_toml_inline_table(items)
     } else {
@@ -88,7 +79,7 @@ fn every_item_is_table(items: &Vec<Item>) -> bool {
     true
 }
 
-fn create_toml_array(items: Vec<Item>, inline: bool) -> Result<Item, Error> {
+fn create_toml_array(items: Vec<Item>, inline: bool) -> Result<Item> {
     if !inline && every_item_is_table(&items) {
         create_toml_array_of_tables(items)
     } else {
@@ -96,35 +87,25 @@ fn create_toml_array(items: Vec<Item>, inline: bool) -> Result<Item, Error> {
     }
 }
 
-fn create_toml_inline_array(items: Vec<Item>) -> Result<Item, Error> {
+fn create_toml_inline_array(items: Vec<Item>) -> Result<Item> {
     let mut output_array = Array::new();
     for item in items {
         match item {
             Item::Value(v) => output_array.push(v),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "error: could not create inline array",
-                ))
-            }
+            _ => bail!("could not create inline array"),
         }
     }
 
     Ok(value(output_array))
 }
 
-fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item, Error> {
+fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item> {
     let mut output_array = ArrayOfTables::new();
 
     for item in items {
         match item {
             Item::Table(t) => output_array.push(t),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "error: could not create array of tables",
-                ))
-            }
+            _ => bail!("could not create array of tables"),
         }
     }
 
