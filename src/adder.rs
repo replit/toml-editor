@@ -1,165 +1,86 @@
-use crate::converter::json_to_toml;
-use crate::field_finder::{get_field, TomlValue};
+use anyhow::{bail, Context, Result};
 use serde_json::{from_str, Value as JValue};
-use std::{io::Error, io::ErrorKind};
 use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Item, Table, Value};
 
-pub fn handle_add(
-    field: String,
-    value_opt: Option<String>,
-    doc: &mut Document,
-) -> Result<(), Error> {
+use crate::converter::json_to_toml;
+use crate::field_finder::{get_field, DoInsert, TomlValue};
+
+pub fn handle_add(field: &str, value: &str, doc: &mut Document) -> Result<()> {
     let mut path_split = field
         .split('/')
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
 
-    let last_field = match path_split.pop() {
-        Some(last_field) => last_field,
-        None => return Err(Error::new(ErrorKind::Other, "Path is empty")),
-    };
+    let last_field = path_split.pop().context("Path is empty")?;
 
-    let insert_if_not_exists = true;
-    let final_field_value = match get_field(&path_split, &last_field, insert_if_not_exists, doc) {
-        Ok(final_field) => final_field,
-        Err(_) => return Err(Error::new(ErrorKind::Other, "Could not find field")),
-    };
+    let final_field_value =
+        get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
 
-    if value_opt.is_none() {
-        return Err(Error::new(
-            ErrorKind::Other,
-            "Expected value to be none null",
-        ));
-    }
-    let value = value_opt.unwrap();
+    let field_value_json: JValue =
+        from_str(&value).context("parsing value field in add request")?;
 
-    let field_value_json: JValue = match from_str(value.as_str()) {
-        Ok(json_field_value) => json_field_value,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: value field in add request is not json",
-            ));
-        }
-    };
+    let is_inline = matches!(
+        final_field_value,
+        TomlValue::InlineTable(_) | TomlValue::Array(_) | TomlValue::Value(_)
+    );
 
-    let is_inline = match final_field_value {
-        TomlValue::ArrayOfTables(_) => false,
-        TomlValue::Table(_) => false,
-        TomlValue::Array(_) => true,
-        TomlValue::InlineTable(_) => true,
-        TomlValue::Value(_) => true,
-    };
-
-    let field_value_toml: Item = match json_to_toml(&field_value_json, is_inline) {
-        Ok(toml_field_value) => toml_field_value,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: value field in add request cannot be converted to toml",
-            ));
-        }
-    };
+    let field_value_toml: Item = json_to_toml(&field_value_json, is_inline)
+        .context("converting value in add request from json to toml")?;
 
     match final_field_value {
-        TomlValue::Table(table) => add_in_table(table, last_field, field_value_toml),
+        TomlValue::Table(table) => add_in_table(table, &last_field, field_value_toml),
         TomlValue::ArrayOfTables(array) => {
-            add_in_array_of_tables(array, last_field, field_value_toml)
+            add_in_array_of_tables(array, &last_field, field_value_toml)
         }
-        TomlValue::Array(array) => add_in_array(array, last_field, field_value_toml),
-        TomlValue::InlineTable(table) => add_in_inline_table(table, last_field, field_value_toml),
-        TomlValue::Value(value) => add_in_generic_value(value, last_field, field_value_toml),
+        TomlValue::Array(array) => add_in_array(array, &last_field, field_value_toml),
+        TomlValue::InlineTable(table) => add_in_inline_table(table, &last_field, field_value_toml),
+        TomlValue::Value(value) => add_in_generic_value(value, &last_field, field_value_toml),
     }
 }
 
-fn add_in_table(table: &mut Table, last_field: String, toml: Item) -> Result<(), Error> {
-    table.insert(last_field.as_str(), toml);
+fn add_in_table(table: &mut Table, last_field: &str, toml: Item) -> Result<()> {
+    table.insert(last_field, toml);
     Ok(())
 }
 
-fn add_in_array_of_tables(
-    array: &mut ArrayOfTables,
-    last_field: String,
-    toml: Item,
-) -> Result<(), Error> {
-    let insert_at_index = match last_field.parse::<usize>() {
-        Ok(index) => index,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not parse last_field as usize",
-            ));
-        }
+fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: &str, toml: Item) -> Result<()> {
+    let insert_at_index = last_field.parse::<usize>().context("parsing last_field")?;
+
+    let table = match toml {
+        Item::Table(table) => table,
+        _ => bail!("could not convert json to toml"),
     };
 
-    match toml {
-        Item::Table(table) => {
-            if insert_at_index >= array.len() {
-                array.push(table);
-            } else {
-                let table_to_modify = match array.get_mut(insert_at_index) {
-                    Some(table) => table,
-                    None => {
-                        return Err(Error::new(
-                            ErrorKind::Other,
-                            "error: could not get mutable reference to table at index",
-                        ));
-                    }
-                };
-
-                *table_to_modify = table;
-            }
-        }
-        _ => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not convert json to toml",
-            ));
-        }
+    if insert_at_index >= array.len() {
+        array.push(table);
+    } else {
+        let table_to_modify = array
+            .get_mut(insert_at_index)
+            .context("getting table at index")?;
+        *table_to_modify = table;
     }
 
     Ok(())
 }
 
-fn add_in_inline_table(
-    table: &mut InlineTable,
-    last_field: String,
-    toml: Item,
-) -> Result<(), Error> {
+fn add_in_inline_table(table: &mut InlineTable, last_field: &str, toml: Item) -> Result<()> {
     // since we requested inline toml, this should be a value
     match toml {
         Item::Value(value) => {
-            match table.insert(last_field.as_str(), value) {
-                Some(_) => {}
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::Other,
-                        "error: could not insert value into inline table",
-                    ))
-                }
-            };
+            table
+                .insert(last_field, value)
+                .context("could not insert value into inline table")?;
         }
-        _ => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not convert json to inline toml",
-            ));
-        }
+        _ => bail!("could not convert json to inline toml"),
     }
 
     Ok(())
 }
 
-fn add_in_array(array: &mut Array, last_field: String, toml: Item) -> Result<(), Error> {
-    let insert_at_index = match last_field.parse::<usize>() {
-        Ok(index) => index,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not parse last_field as usize",
-            ));
-        }
-    };
+fn add_in_array(array: &mut Array, last_field: &str, toml: Item) -> Result<()> {
+    let insert_at_index = last_field
+        .parse::<usize>()
+        .context("could not parse last_field as usize")?;
 
     // since we requested inline toml, this should be a value
     match toml {
@@ -167,42 +88,24 @@ fn add_in_array(array: &mut Array, last_field: String, toml: Item) -> Result<(),
             if insert_at_index >= array.len() {
                 array.push(value);
             } else {
-                let value_to_modify = match array.get_mut(insert_at_index) {
-                    Some(value) => value,
-                    None => {
-                        return Err(Error::new(
-                            ErrorKind::Other,
-                            "error: could not get mutable reference to value at index",
-                        ));
-                    }
-                };
+                let value_to_modify = array
+                    .get_mut(insert_at_index)
+                    .context("could not get value at index")?;
 
                 *value_to_modify = value;
             }
         }
-        _ => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not convert json to toml",
-            ));
-        }
+        _ => bail!("could not convert json to toml"),
     }
 
     Ok(())
 }
 
-fn add_in_generic_value(
-    generic_value: &mut Value,
-    last_field: String,
-    toml: Item,
-) -> Result<(), Error> {
+fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item) -> Result<()> {
     match generic_value {
         Value::InlineTable(table) => add_in_inline_table(table, last_field, toml),
         Value::Array(array) => add_in_array(array, last_field, toml),
-        _ => Err(Error::new(
-            ErrorKind::Other,
-            "error: could not add into generic value",
-        )),
+        _ => bail!("could not add into generic value"),
     }
 }
 
@@ -239,9 +142,9 @@ mod adder_tests {
                 let mut doc = $contents;
                 let expected = $expected;
                 let field = $field;
-                let value = Some($value.to_string());
+                let value = $value.to_string();
 
-                let result = handle_add(field.to_string(), value, &mut doc);
+                let result = handle_add(field, &value, &mut doc);
                 assert!(result.is_ok(), "error: {:?}", result);
                 assert_eq!(doc.to_string().trim(), expected.trim());
             }

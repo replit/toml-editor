@@ -1,81 +1,66 @@
-use crate::field_finder::{get_field, TomlValue};
 use std::{io::Error, io::ErrorKind};
+
+use anyhow::{bail, Context, Result};
 use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Table};
 
-pub fn handle_remove(field: String, doc: &mut Document) -> Result<(), Error> {
+use crate::field_finder::{get_field, DoInsert, TomlValue};
+
+pub fn handle_remove(field: &str, doc: &mut Document) -> Result<()> {
     let mut path_split = field
         .split('/')
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
 
-    let last_field = match path_split.pop() {
-        Some(last_field) => last_field,
-        None => return Err(Error::new(ErrorKind::Other, "Path is empty")),
-    };
+    let last_field = path_split.pop().context("path is empty")?;
 
-    let insert_if_not_exists = false;
-    let field = match get_field(&path_split, &last_field, insert_if_not_exists, doc) {
+    let field = match get_field(&path_split, &last_field, DoInsert::No, doc) {
         Ok(field) => field,
-        Err(e) => {
-            if e.kind() == ErrorKind::NotFound {
+        Err(e) => match e.downcast::<Error>() {
+            Ok(error) => {
                 // if you can't find the field then it's already gone
                 // so we don't need to remove it or do anything else
-                return Ok(());
-            } else {
-                return Err(e);
+                if error.kind() == ErrorKind::NotFound {
+                    return Ok(());
+                }
+
+                bail!(error);
             }
-        }
+            Err(e) => bail!(e),
+        },
     };
 
     match field {
-        TomlValue::Table(table) => remove_in_table(table, last_field),
-        TomlValue::Array(array) => remove_in_array(array, last_field),
-        TomlValue::ArrayOfTables(array) => remove_in_array_of_tables(array, last_field),
-        TomlValue::InlineTable(table) => remove_in_inline_table(table, last_field),
-        TomlValue::Value(_) => Err(Error::new(
-            ErrorKind::Other,
-            "error: cannot remove_in non array/table value",
-        )),
+        TomlValue::Table(table) => remove_in_table(table, &last_field),
+        TomlValue::Array(array) => remove_in_array(array, &last_field),
+        TomlValue::ArrayOfTables(array) => remove_in_array_of_tables(array, &last_field),
+        TomlValue::InlineTable(table) => remove_in_inline_table(table, &last_field),
+        TomlValue::Value(_) => bail!("cannot remove_ind non array/table value"),
     }
 }
 
-fn remove_in_array(array: &mut Array, last_field: String) -> Result<(), Error> {
-    let array_index = match last_field.parse::<usize>() {
-        Ok(array_index) => array_index,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not parse array index",
-            ));
-        }
-    };
-
+fn remove_in_array(array: &mut Array, last_field: &str) -> Result<()> {
+    let array_index = last_field
+        .parse::<usize>()
+        .context("could not parse array index")?;
     array.remove(array_index);
     Ok(())
 }
 
-fn remove_in_array_of_tables(array: &mut ArrayOfTables, last_field: String) -> Result<(), Error> {
-    let array_index = match last_field.parse::<usize>() {
-        Ok(array_index) => array_index,
-        Err(_) => {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "error: could not parse array index",
-            ));
-        }
-    };
-
+fn remove_in_array_of_tables(array: &mut ArrayOfTables, last_field: &str) -> Result<()> {
+    let array_index = last_field
+        .parse::<usize>()
+        .context("could not parse array index")?;
     array.remove(array_index);
     Ok(())
 }
 
-fn remove_in_table(table: &mut Table, last_field: String) -> Result<(), Error> {
-    table.remove(last_field.as_str());
+fn remove_in_table(table: &mut Table, last_field: &str) -> Result<()> {
+    table.remove(last_field);
     Ok(())
 }
 
-fn remove_in_inline_table(inline_table: &mut InlineTable, last_field: String) -> Result<(), Error> {
-    inline_table.remove(last_field.as_str());
+fn remove_in_inline_table(inline_table: &mut InlineTable, last_field: &str) -> Result<()> {
+    inline_table.remove(last_field);
     Ok(())
 }
 
@@ -124,7 +109,7 @@ none = "all""#
             #[test]
             fn $name() {
                 let mut doc = $contents;
-                handle_remove($field.to_string(), &mut doc).unwrap();
+                handle_remove($field, &mut doc).unwrap();
                 assert_eq!(doc.to_string().trim(), $expected.trim());
             }
         };
