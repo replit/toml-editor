@@ -41,6 +41,12 @@ struct Op {
     value: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct Res {
+    status: String,
+    message: Option<String>,
+}
+
 // Reads from stdin a json that describes what operation to
 // perform on the toml file. Returns either "success" or
 // a message that starts with "error".
@@ -52,9 +58,19 @@ fn main() -> Result<()> {
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line?;
-        if let Err(err) = handle_message(&dotreplit_filepath, &line) {
-            println!("Error handling message: {}", err);
-        }
+        let res = match handle_message(&dotreplit_filepath, &line) {
+            Ok(_) => Res {
+                status: "success".to_string(),
+                message: None,
+            },
+            Err(err) => Res {
+                status: "error".to_string(),
+                message: Some(err.to_string()),
+            },
+        };
+
+        let res_json = serde_json::to_string(&res)?;
+        println!("{}", res_json);
     }
 
     Ok(())
@@ -62,21 +78,21 @@ fn main() -> Result<()> {
 
 fn handle_message(dotreplit_filepath: &Path, msg: &str) -> Result<()> {
     // parse line as json
-    let json: Vec<Op> = from_str(&msg)?;
+    let json: Vec<Op> = from_str(msg)?;
 
     // we need to re-read the file each time since the user might manually edit the
     // file and so we need to make sure we have the most up to date version.
     let dotreplit_contents = fs::read_to_string(&dotreplit_filepath)
-        .with_context(|| format!("reading file: {:?}", &dotreplit_filepath))?;
+        .with_context(|| format!("error: reading file - {:?}", &dotreplit_filepath))?;
 
     let mut doc = dotreplit_contents
         .parse::<Document>()
-        .with_context(|| format!("parsing file: {:?}", &dotreplit_filepath))?;
+        .with_context(|| format!("error: parsing file - {:?}", &dotreplit_filepath))?;
 
     for op in json {
         match op.op {
             OpKind::Add => {
-                let value = op.value.context("expected value to add")?;
+                let value = op.value.context("error: expected value to add")?;
                 handle_add(&op.path, &value, &mut doc)?
             }
             OpKind::Remove => handle_remove(&op.path, &mut doc)?,
@@ -85,6 +101,6 @@ fn handle_message(dotreplit_filepath: &Path, msg: &str) -> Result<()> {
 
     // write the file back to disk
     fs::write(&dotreplit_filepath, doc.to_string())
-        .with_context(|| format!("writing file: {:?}", &dotreplit_filepath))?;
+        .with_context(|| format!("error: writing file: {:?}", &dotreplit_filepath))?;
     Ok(())
 }
