@@ -17,7 +17,7 @@ pub fn handle_add(field: &str, value: &str, doc: &mut Document) -> Result<()> {
         get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
 
     let field_value_json: JValue =
-        from_str(&value).context("parsing value field in add request")?;
+        from_str(value).context("parsing value field in add request")?;
 
     let is_inline = matches!(
         final_field_value,
@@ -352,6 +352,112 @@ hi = 123
 
 [[foo]]
 hi = 1234
+"#
+    );
+
+    add_test!(
+        preserve_ordering_on_unrelated_field,
+        "run",
+        r#""echo heyo""#,
+        r#"
+run = "echo hi"
+
+[env]
+VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
+PATH = "${VIRTUAL_ENV}/bin"
+PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
+REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
+MPLBACKEND="TkAgg"
+POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+run = "echo heyo"
+
+[env]
+VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
+PATH = "${VIRTUAL_ENV}/bin"
+PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
+REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
+MPLBACKEND="TkAgg"
+POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
+"#
+    );
+
+    add_test!(
+        preserve_ordering_on_semi_related_field,
+        "env/TEST",
+        r#""heyo""#,
+        r#"
+[env]
+VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
+PATH = "${VIRTUAL_ENV}/bin"
+PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
+REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
+MPLBACKEND="TkAgg"
+POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+[env]
+VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
+PATH = "${VIRTUAL_ENV}/bin"
+PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
+REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
+MPLBACKEND="TkAgg"
+POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
+TEST = "heyo"
+"#
+    );
+
+    add_test!(
+        preserve_ordering_on_related_field,
+        "env/PATH",
+        r#""${VIRTUAL_ENV}/bin""#,
+        r#"
+[env]
+VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
+PATH = "${VIRTUAL_ENV}/bin"
+PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
+REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
+MPLBACKEND="TkAgg"
+POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+[env]
+VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
+PATH = "${VIRTUAL_ENV}/bin"
+PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
+REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
+MPLBACKEND="TkAgg"
+POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
+"#
+    );
+
+    add_test!(
+        preserve_ordering_on_add_object,
+        "env",
+        r#"{"VIRTUAL_ENV":"/home/runner/${REPL_SLUG}/venv","PATH":"${VIRTUAL_ENV}/bin","PYTHONPATH":"${VIRTUAL_ENV}/lib/python3.8/site-packages","REPLIT_POETRY_PYPI_REPOSITORY":"https://package-proxy.replit.com/pypi/","MPLBACKEND":"TkAgg","POETRY_CACHE_DIR":"${HOME}/${REPL_SLUG}/.cache/pypoetry"}
+"#,
+        r#"
+run = "hi"
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+run = "hi"
+
+[env]
+VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
+PATH = "${VIRTUAL_ENV}/bin"
+PYTHONPATH = "${VIRTUAL_ENV}/lib/python3.8/site-packages"
+REPLIT_POETRY_PYPI_REPOSITORY = "https://package-proxy.replit.com/pypi/"
+MPLBACKEND = "TkAgg"
+POETRY_CACHE_DIR = "${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#
     );
 }

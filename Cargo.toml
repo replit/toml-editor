@@ -1,13 +1,13 @@
 [package]
 name = "toml-editor"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 toml_edit = "0.14.4"
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 clap = { version = "3.2.10", features = ["derive"] }
 anyhow = "1.0.58"
