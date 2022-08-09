@@ -156,7 +156,7 @@ mod converter_tests {
         let res = toml.to_string();
         assert_eq!(
             res.trim(),
-            "{ arr = [{ a = 1, b = 2 }, { a = 3, b = 4 }], who = 123 }".trim()
+            "{ who = 123, arr = [{ a = 1, b = 2 }, { a = 3, b = 4 }] }".trim()
         );
     }
 
