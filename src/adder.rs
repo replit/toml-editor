@@ -16,8 +16,7 @@ pub fn handle_add(field: &str, value: &str, doc: &mut Document) -> Result<()> {
     let final_field_value =
         get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
 
-    let field_value_json: JValue =
-        from_str(value).context("parsing value field in add request")?;
+    let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
 
     let is_inline = matches!(
         final_field_value,

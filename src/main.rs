@@ -21,6 +21,11 @@ use crate::remover::handle_remove;
 struct Args {
     #[clap(short, long, value_parser, default_value = ".replit")]
     path: PathBuf,
+
+    #[clap(short, long, value_parser, default_value = "false")]
+    // Whether or not to write this value directly to the file,
+    // or just print it as part of the return message.
+    return_output: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -58,16 +63,7 @@ fn main() -> Result<()> {
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         let line = line?;
-        let res = match handle_message(&dotreplit_filepath, &line) {
-            Ok(_) => Res {
-                status: "success".to_string(),
-                message: None,
-            },
-            Err(err) => Res {
-                status: "error".to_string(),
-                message: Some(err.to_string()),
-            },
-        };
+        let res = handle_message(&dotreplit_filepath, &line, args.return_output);
 
         let res_json = serde_json::to_string(&res)?;
         println!("{}", res_json);
@@ -76,7 +72,20 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle_message(dotreplit_filepath: &Path, msg: &str) -> Result<()> {
+fn handle_message(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Res {
+    match do_edits(dotreplit_filepath, msg, return_output) {
+        Ok(doc) => Res {
+            status: "success".to_string(),
+            message: if return_output { Some(doc) } else { None },
+        },
+        Err(err) => Res {
+            status: "error".to_string(),
+            message: Some(err.to_string()),
+        },
+    }
+}
+
+fn do_edits(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Result<String> {
     // parse line as json
     let json: Vec<Op> = from_str(msg)?;
 
@@ -99,8 +108,11 @@ fn handle_message(dotreplit_filepath: &Path, msg: &str) -> Result<()> {
         }
     }
 
+    if return_output {
+        return Ok(doc.to_string());
+    }
     // write the file back to disk
     fs::write(&dotreplit_filepath, doc.to_string())
         .with_context(|| format!("error: writing file: {:?}", &dotreplit_filepath))?;
-    Ok(())
+    Ok("".to_string())
 }
