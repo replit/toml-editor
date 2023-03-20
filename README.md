@@ -21,3 +21,9 @@ Below is an example set of operations:
 ```
 
 The program only takes one optional command line argument. You can include the file path of the .replit file like so `./toml-editor <path>`. If you do not, it will default to looking in the current directory for the `.replit` file.
+
+## Contributing
+
+To contribute, ensure you have [devenv](https://devenv.sh) enabled. There is a direnv directive to load the devenv environment automatically, or you may run `devenv shell` to load it manually.
+
+TODO: add replit support

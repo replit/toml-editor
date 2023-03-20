@@ -1,5 +1,9 @@
 /target
 
-result
+/result
 
-.replit
+# Devenv
+.devenv*
+devenv.local.nix
+
+/.direnv
