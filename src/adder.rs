@@ -16,7 +16,14 @@ pub fn handle_add(field: &str, value: &str, doc: &mut Document) -> Result<()> {
     let final_field_value =
         get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
 
-    let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
+    let mut field_value_json: JValue =
+        from_str(value).context("parsing value field in add request")?;
+
+    if matches!(field_value_json, JValue::Null) {
+        return Ok(());
+    }
+
+    filter_nulls(&mut field_value_json);
 
     let is_inline = matches!(
         final_field_value,
@@ -105,6 +112,20 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item)
         Value::InlineTable(table) => add_in_inline_table(table, last_field, toml),
         Value::Array(array) => add_in_array(array, last_field, toml),
         _ => bail!("could not add into generic value"),
+    }
+}
+
+fn filter_nulls(value: &mut JValue) {
+    match value {
+        JValue::Array(arr) => {
+            arr.retain(|v| !matches!(v, JValue::Null));
+            arr.iter_mut().for_each(filter_nulls);
+        }
+        JValue::Object(obj) => {
+            obj.retain(|_, v| !matches!(v, JValue::Null));
+            obj.values_mut().for_each(filter_nulls);
+        }
+        _ => return,
     }
 }
 
@@ -457,6 +478,71 @@ PYTHONPATH = "${VIRTUAL_ENV}/lib/python3.8/site-packages"
 REPLIT_POETRY_PYPI_REPOSITORY = "https://package-proxy.replit.com/pypi/"
 MPLBACKEND = "TkAgg"
 POETRY_CACHE_DIR = "${HOME}/${REPL_SLUG}/.cache/pypoetry"
+"#
+    );
+
+    add_test!(
+        add_null_value_to_map,
+        "foo/bar",
+        "null",
+        r#"
+[foo]
+baz = true
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+[foo]
+baz = true
+"#
+    );
+
+    add_test!(
+        add_null_value_to_array,
+        "foo",
+        "[null]",
+        r#"
+foo = ["hello", "world!"]
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+"#
+    );
+
+    add_test!(
+        append_to_map_with_null_value,
+        "interpreter",
+        r#"{
+    "command": [
+        "stderred",
+        "--",
+        "prybar-python3",
+        "-q",
+        "--ps1",
+        "\u0001\u001b[33m\u0002\u0001\u001b[00m\u0002 ",
+        "-i"
+    ],
+    "prompt": null
+}"#,
+        r#"
+[intepreter.command]
+args = []
+env = {}
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+[interpreter]
+command = [
+    "stderred",
+    "--",
+    "prybar-python3",
+    "-q",
+    "--ps1",
+    "\u0001\u001b[33m\u0002\u0001\u001b[00m\u0002 ",
+    "-i",
+]
 "#
     );
 }
