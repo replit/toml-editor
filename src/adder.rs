@@ -166,7 +166,7 @@ mod adder_tests {
 
                 let result = handle_add(field, &value, &mut doc);
                 assert!(result.is_ok(), "error: {:?}", result);
-                assert_eq!(doc.to_string().trim(), expected.trim());
+                pretty_assertions::assert_eq!(doc.to_string().trim(), expected.trim());
             }
         };
     }
@@ -544,5 +544,41 @@ command = [
     "-i",
 ]
 "#
+    );
+
+    add_test!(
+        merge_with_different_structures,
+        "interpreter",
+        r#"{
+    "command": [
+        "stderred",
+        "--",
+        "prybar-python3",
+        "-q",
+        "--ps1",
+        "\u0001\u001b[33m\u0002\u0001\u001b[00m\u0002 ",
+        "-i"
+    ],
+    "prompt": null
+}"#,
+        r#"
+[interpreter]
+    [interpreter.command]
+    args = [
+        "stderred",
+        "--",
+        "prybar-python3",
+        "-q",
+        "--ps1",
+        "\u0001\u001b[33m\u0002\u0001\u001b[00m\u0002 ",
+        "-i",
+    ]
+    env = { LD_LIBRARY_PATH = "$PYTHON_LD_LIBRARY_PATH" }
+"#
+        .parse::<Document>()
+        .unwrap(),
+        r#"
+[interpreter]
+command = ["stderred", "--", "prybar-python3", "-q", "--ps1", "\u0001\u001B[33m\u0002\u0001\u001B[00m\u0002 ", "-i"]"#
     );
 }
