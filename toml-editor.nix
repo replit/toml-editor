@@ -1,13 +1,14 @@
-{ rustPlatform, rev }:
-
+{
+  rustPlatform,
+  rev,
+}:
 rustPlatform.buildRustPackage {
-    pname = "toml-editor";
-    version = rev;
+  pname = "toml-editor";
+  version = rev;
 
-    cargoLock = {
-      lockFile = ./Cargo.lock;
-    };
+  cargoLock = {
+    lockFile = ./Cargo.lock;
+  };
 
-    src = ./.;
+  src = ./.;
 }
-
