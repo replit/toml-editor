@@ -91,8 +91,10 @@ fn do_edits(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Result
 
     // we need to re-read the file each time since the user might manually edit the
     // file and so we need to make sure we have the most up to date version.
-    let dotreplit_contents = fs::read_to_string(&dotreplit_filepath)
-        .with_context(|| format!("error: reading file - {:?}", &dotreplit_filepath))?;
+    let dotreplit_contents = match fs::read_to_string(&dotreplit_filepath) {
+        Ok(contents) => contents,
+        Err(_) => "".to_string(), // if .replit doesn't exist start with an empty one
+    };
 
     let mut doc = dotreplit_contents
         .parse::<Document>()
