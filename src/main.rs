@@ -93,7 +93,8 @@ fn do_edits(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Result
     // file and so we need to make sure we have the most up to date version.
     let dotreplit_contents = match fs::read_to_string(&dotreplit_filepath) {
         Ok(contents) => contents,
-        Err(_) => "".to_string(), // if .replit doesn't exist start with an empty one
+        Err(err) if err.kind() == io::ErrorKind::NotFound => "".to_string, // if .replit doesn't exist start with an empty one
+        Err(_) => return Err(anyhow!("error: reading file - {:?}", &dotreplit_filepath)),
     };
 
     let mut doc = dotreplit_contents
