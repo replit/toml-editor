@@ -15,9 +15,9 @@ Below is an example set of operations:
 
 ```
 [
-  { "Op": "add", "Field": "foo", "Value": 123 },
-  { "Op": "add", "Field": "bar/1", "Value": "{\"test\": 234}"}
+  { "op": "add", "path": "foo", "value": 123 },
+  { "op": "add", "path": "bar/1", "value": "{\"test\": 234}"}
 ]
 ```
 
-The program only takes one optional command line argument. You can include the file path of the .replit file like so `./toml-editor <path>`. If you do not, it will default to looking in the current directory for the `.replit` file.
+You can include the file path of the .replit file like so `./toml-editor -p <path>`. If you do not, it will default to looking in the current directory for the `.replit` file.
