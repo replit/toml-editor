@@ -1,11 +1,11 @@
 use std::{io::Error, io::ErrorKind};
 
 use anyhow::{bail, Context, Result};
-use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Table};
+use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Table};
 
 use crate::field_finder::{get_field, DoInsert, TomlValue};
 
-pub fn handle_remove(field: &str, doc: &mut Document) -> Result<()> {
+pub fn handle_remove(field: &str, doc: &mut DocumentMut) -> Result<()> {
     let mut path_split = field
         .split('/')
         .map(|s| s.to_string())
@@ -67,9 +67,9 @@ fn remove_in_inline_table(inline_table: &mut InlineTable, last_field: &str) -> R
 #[cfg(test)]
 mod remover_tests {
     use super::*;
-    use toml_edit::{Document, TomlError};
+    use toml_edit::{DocumentMut, TomlError};
 
-    fn get_dotreplit_content() -> Result<Document, TomlError> {
+    fn get_dotreplit_content() -> Result<DocumentMut, TomlError> {
         r#"test = "yo"
 [foo]
 bar = "baz"
@@ -82,10 +82,10 @@ glub = "group"
 [[foo.arr]]
 none = "all""#
             .to_string()
-            .parse::<Document>()
+            .parse::<DocumentMut>()
     }
 
-    fn get_dotreplit_content_with_formatting() -> Result<Document, TomlError> {
+    fn get_dotreplit_content_with_formatting() -> Result<DocumentMut, TomlError> {
         r#"test = "yo"
 [foo]
   bar = "baz"  # comment
@@ -101,7 +101,7 @@ none = "all""#
 [[foo.arr]]
         none = "all""#
             .to_string()
-            .parse::<Document>()
+            .parse::<DocumentMut>()
     }
 
     macro_rules! remove_test {
@@ -193,7 +193,7 @@ glub = "group"
     remove_test!(
         test_remove_inline_array,
         "arr/1",
-        "arr = [1, 2, 3, 4] # comment".parse::<Document>().unwrap(),
+        "arr = [1, 2, 3, 4] # comment".parse::<DocumentMut>().unwrap(),
         "arr = [1, 3, 4] # comment"
     );
 
@@ -201,7 +201,7 @@ glub = "group"
         test_remove_inline_table,
         "tbl/bla",
         "tbl = { bla = \"bar\", blue = 123 } # go go"
-            .parse::<Document>()
+            .parse::<DocumentMut>()
             .unwrap(),
         "tbl = { blue = 123 } # go go"
     );
@@ -211,7 +211,7 @@ glub = "group"
         "foo/bar/baz/boop",
         "[foo]
         yup = 123"
-            .parse::<Document>()
+            .parse::<DocumentMut>()
             .unwrap(),
         "[foo]
         yup = 123"

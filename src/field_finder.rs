@@ -1,7 +1,7 @@
 use std::{io::Error, io::ErrorKind};
 
 use anyhow::{bail, Context, Result};
-use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Item, Table, Value};
+use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value};
 
 pub enum TomlValue<'a> {
     Table(&'a mut Table),
@@ -21,7 +21,7 @@ pub fn get_field<'a>(
     path: &[String],
     last_field: &String,
     do_insert: DoInsert,
-    doc: &'a mut Document,
+    doc: &'a mut DocumentMut,
 ) -> Result<TomlValue<'a>> {
     let current_table = doc.as_table_mut();
 
@@ -192,7 +192,7 @@ fn descend_array<'a>(
 #[cfg(test)]
 mod finger_tests {
     use super::*;
-    use toml_edit::Document;
+    use toml_edit::DocumentMut;
 
     #[test]
     fn get_basic_field() {
@@ -204,7 +204,7 @@ bar = "baz"
 bla = "bla"
 "#;
 
-        let mut doc = doc_string.parse::<Document>().unwrap();
+        let mut doc = doc_string.parse::<DocumentMut>().unwrap();
         let val = get_field(
             &(vec!["foo".to_string()]),
             &"bar".to_string(),
@@ -223,7 +223,7 @@ bla = "bla"
     #[test]
     fn insert_inline_array() {
         let doc_string = r#"test = [ 1 ]"#;
-        let mut doc = doc_string.parse::<Document>().unwrap();
+        let mut doc = doc_string.parse::<DocumentMut>().unwrap();
         let fields = ["test".to_string()];
         let val = get_field(&(fields), &"1".to_string(), DoInsert::Yes, &mut doc).unwrap();
 
@@ -242,7 +242,7 @@ foo = "bar"
 [[test]]
 foo = "baz"
 "#;
-        let mut doc = doc_string.parse::<Document>().unwrap();
+        let mut doc = doc_string.parse::<DocumentMut>().unwrap();
         let fields = ["test".to_string()];
         let val = get_field(&(fields), &"2".to_string(), DoInsert::Yes, &mut doc).unwrap();
 
