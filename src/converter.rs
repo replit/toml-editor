@@ -116,7 +116,7 @@ fn create_toml_array_of_tables(items: Vec<Item>) -> Result<Item> {
 mod converter_tests {
     use super::*;
     use serde_json::{from_str, Value as JValue};
-    use toml_edit::Document;
+    use toml_edit::DocumentMut;
 
     #[test]
     fn test_json_to_toml_array() {
@@ -169,7 +169,7 @@ mod converter_tests {
         let json: JValue = from_str(json_string).unwrap();
         let toml_res = json_to_toml(&json, false);
         assert!(toml_res.is_ok());
-        let mut doc = Document::new();
+        let mut doc = DocumentMut::new();
         doc["arr"] = toml_res.unwrap();
 
         let expected = r#"
@@ -194,7 +194,7 @@ b = 4
         let json: JValue = from_str(json_string).unwrap();
         let toml_res = json_to_toml(&json, false);
         assert!(toml_res.is_ok());
-        let mut doc = Document::new();
+        let mut doc = DocumentMut::new();
         doc["arr"] = toml_res.unwrap();
 
         let expected = r#"

@@ -11,7 +11,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use toml_edit::Document;
+use toml_edit::DocumentMut;
 
 use crate::adder::handle_add;
 use crate::remover::handle_remove;
@@ -98,7 +98,7 @@ fn do_edits(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Result
     };
 
     let mut doc = dotreplit_contents
-        .parse::<Document>()
+        .parse::<DocumentMut>()
         .with_context(|| format!("error: parsing file - {:?}", &dotreplit_filepath))?;
 
     for op in json {

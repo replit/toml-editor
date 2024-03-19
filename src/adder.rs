@@ -1,11 +1,11 @@
 use anyhow::{bail, Context, Result};
 use serde_json::{from_str, Value as JValue};
-use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Item, Table, Value};
+use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value};
 
 use crate::converter::json_to_toml;
 use crate::field_finder::{get_field, DoInsert, TomlValue};
 
-pub fn handle_add(field: &str, value: &str, doc: &mut Document) -> Result<()> {
+pub fn handle_add(field: &str, value: &str, doc: &mut DocumentMut) -> Result<()> {
     let mut path_split = field
         .split('/')
         .map(|s| s.to_string())
@@ -111,9 +111,9 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item)
 #[cfg(test)]
 mod adder_tests {
     use super::*;
-    use toml_edit::{Document, TomlError};
+    use toml_edit::{DocumentMut, TomlError};
 
-    fn get_dotreplit_content_with_formatting() -> Result<Document, TomlError> {
+    fn get_dotreplit_content_with_formatting() -> Result<DocumentMut, TomlError> {
         r#"test = "yo"
 [foo]
   bar = "baz"  # comment
@@ -131,7 +131,7 @@ mod adder_tests {
 [[foo.arr]]
         none = "all""#
             .to_string()
-            .parse::<Document>()
+            .parse::<DocumentMut>()
     }
 
     macro_rules! add_test {
@@ -270,7 +270,7 @@ foo = [1, 2, 3]
         simple_push_into_array,
         "arr/2",
         "123",
-        r#"arr = [1, 2]"#.parse::<Document>().unwrap(),
+        r#"arr = [1, 2]"#.parse::<DocumentMut>().unwrap(),
         r#"arr = [1, 2, 123]"#
     );
 
@@ -305,7 +305,7 @@ test = "yo"
         add_as_you_traverse,
         "foo/arr",
         r#""yup""#,
-        r#"meep = "nope""#.parse::<Document>().unwrap(),
+        r#"meep = "nope""#.parse::<DocumentMut>().unwrap(),
         r#"meep = "nope"
 
 [foo]
@@ -316,7 +316,7 @@ arr = "yup""#
         add_array_objects_deep,
         "foo/0/hi",
         r#"123"#,
-        r#"top = "hi""#.parse::<Document>().unwrap(),
+        r#"top = "hi""#.parse::<DocumentMut>().unwrap(),
         r#"top = "hi"
 
 [[foo]]
@@ -328,7 +328,7 @@ hi = 123
         add_array_objects,
         "foo/0",
         r#"{"hi": 123}"#,
-        r#"top = "hi""#.parse::<Document>().unwrap(),
+        r#"top = "hi""#.parse::<DocumentMut>().unwrap(),
         r#"top = "hi"
 
 [[foo]]
@@ -343,7 +343,7 @@ hi = 123
         r#"top = "hi"
 [[foo]]
 hi = 123"#
-            .parse::<Document>()
+            .parse::<DocumentMut>()
             .unwrap(),
         r#"top = "hi"
 [[foo]]
@@ -369,7 +369,7 @@ REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#
-        .parse::<Document>()
+        .parse::<DocumentMut>()
         .unwrap(),
         r#"
 run = "echo heyo"
@@ -397,7 +397,7 @@ REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#
-        .parse::<Document>()
+        .parse::<DocumentMut>()
         .unwrap(),
         r#"
 [env]
@@ -424,7 +424,7 @@ REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#
-        .parse::<Document>()
+        .parse::<DocumentMut>()
         .unwrap(),
         r#"
 [env]
@@ -445,7 +445,7 @@ POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
         r#"
 run = "hi"
 "#
-        .parse::<Document>()
+        .parse::<DocumentMut>()
         .unwrap(),
         r#"
 run = "hi"
