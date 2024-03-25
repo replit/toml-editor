@@ -2,6 +2,7 @@ mod adder;
 mod converter;
 mod field_finder;
 mod remover;
+mod traversal;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,6 +34,10 @@ enum OpKind {
     /// Creates the field if it doesn't already exist and sets it
     #[serde(rename = "add")]
     Add,
+
+    /// Gets the value at the specified path, returned as JSON
+    #[serde(rename = "get")]
+    Get,
 
     /// Removes the field if it exists
     #[serde(rename = "remove")]
@@ -102,12 +107,17 @@ fn do_edits(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Result
         .with_context(|| format!("error: parsing file - {:?}", &dotreplit_filepath))?;
 
     for op in json {
+        let path = op.path;
         match op.op {
             OpKind::Add => {
                 let value = op.value.context("error: expected value to add")?;
-                handle_add(&op.path, &value, &mut doc)?
+                handle_add(&path, &value, &mut doc)?
             }
-            OpKind::Remove => handle_remove(&op.path, &mut doc)?,
+            OpKind::Get => {
+                let op = traversal::TraverseOps::Get(Box::new(|val| println!("{:?}", val)));
+                traversal::traverse(&path, &mut doc, op)?
+            }
+            OpKind::Remove => handle_remove(&path, &mut doc)?,
         }
     }
 
