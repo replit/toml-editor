@@ -124,7 +124,7 @@ fn do_edits(
                 handle_add(&path, &value, &mut doc)?
             }
             OpKind::Get => {
-                let op = traversal::TraverseOps::Get(Box::new(|val| println!("{}", val)));
+                let op = traversal::TraverseOps::Get(Box::new(|val| val.to_value()));
                 let value = traversal::traverse(&path, &mut doc, op)?;
                 outputs.push(value);
             }
