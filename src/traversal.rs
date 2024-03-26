@@ -84,8 +84,20 @@ impl At<'_> {
 
     pub fn to_value(&mut self) -> Result<serde_json::Value> {
         match self {
-            At::Array(_arr) => Err(anyhow!("array")),
-            At::ArrayOfTables(_aar) => Err(anyhow!("stub")),
+            At::Array(arr) => {
+                let xs = arr
+                    .iter_mut()
+                    .map(|val| At::Value(val).to_value())
+                    .collect::<Result<Vec<Json>>>()?;
+                Ok(Json::Array(xs))
+            }
+            At::ArrayOfTables(aar) => {
+                let result = aar
+                    .iter_mut()
+                    .map(|table| At::Table(table).to_value())
+                    .collect::<Result<Vec<Json>>>()?;
+                Ok(Json::Array(result))
+            }
             At::Item(item) => match item {
                 Item::None => Ok(Json::Null),
                 Item::Value(value) => At::Value(value).to_value(),
@@ -107,13 +119,7 @@ impl At<'_> {
                     Ok(Json::Number(n))
                 }
                 Value::Boolean(b) => Ok(Json::Bool(b.clone().into_value())),
-                Value::Array(arr) => {
-                    let xs = arr
-                        .iter_mut()
-                        .map(|val| At::Value(val).to_value())
-                        .collect::<Result<Vec<Json>>>()?;
-                    Ok(Json::Array(xs))
-                }
+                Value::Array(arr) => At::Array(arr).to_value(),
                 Value::Datetime(dt) => Ok(Json::String(dt.to_string())),
                 Value::InlineTable(table) => {
                     let inner: Map<String, Json> = table
