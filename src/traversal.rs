@@ -83,6 +83,12 @@ impl At<'_> {
             }
             At::Value(value) => match value {
                 Value::Array(arr) => At::Array(arr).fold(key, path, op),
+                Value::InlineTable(table) => {
+                    let mut found = table
+                        .get_mut(key)
+                        .ok_or(anyhow!("Unable to index table with {:?}", key))?;
+                    do_traverse(path, &mut At::Value(&mut found), op)
+                }
                 _ => Err(anyhow!("Unable to index value {:?} with {:?}", value, key)),
             },
         }
