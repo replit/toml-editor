@@ -11,7 +11,7 @@ use std::{io, io::prelude::*};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use serde_json::from_str;
+use serde_json::{from_str, Value};
 use toml_edit::DocumentMut;
 
 use crate::adder::handle_add;
@@ -55,6 +55,7 @@ struct Op {
 struct Res {
     status: String,
     message: Option<String>,
+    results: Vec<Value>,
 }
 
 // Reads from stdin a json that describes what operation to
@@ -79,18 +80,24 @@ fn main() -> Result<()> {
 
 fn handle_message(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Res {
     match do_edits(dotreplit_filepath, msg, return_output) {
-        Ok(doc) => Res {
+        Ok((doc, outs)) => Res {
             status: "success".to_string(),
             message: if return_output { Some(doc) } else { None },
+            results: outs,
         },
         Err(err) => Res {
             status: "error".to_string(),
             message: Some(err.to_string()),
+            results: vec![],
         },
     }
 }
 
-fn do_edits(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Result<String> {
+fn do_edits(
+    dotreplit_filepath: &Path,
+    msg: &str,
+    return_output: bool,
+) -> Result<(String, Vec<Value>)> {
     // parse line as json
     let json: Vec<Op> = from_str(msg)?;
 
@@ -106,26 +113,36 @@ fn do_edits(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Result
         .parse::<DocumentMut>()
         .with_context(|| format!("error: parsing file - {:?}", &dotreplit_filepath))?;
 
+    let mut changed: bool = false;
+    let mut outputs: Vec<Value> = vec![];
     for op in json {
         let path = op.path;
         match op.op {
             OpKind::Add => {
                 let value = op.value.context("error: expected value to add")?;
+                changed = true;
                 handle_add(&path, &value, &mut doc)?
             }
             OpKind::Get => {
-                let op = traversal::TraverseOps::Get(Box::new(|val| println!("{:?}", val)));
-                traversal::traverse(&path, &mut doc, op)?
+                let op = traversal::TraverseOps::Get(Box::new(|val| println!("{}", val)));
+                let value = traversal::traverse(&path, &mut doc, op)?;
+                outputs.push(value);
             }
-            OpKind::Remove => handle_remove(&path, &mut doc)?,
+            OpKind::Remove => {
+                changed = true;
+                handle_remove(&path, &mut doc)?
+            }
         }
     }
 
     if return_output {
-        return Ok(doc.to_string());
+        return Ok((doc.to_string(), outputs));
     }
+
     // write the file back to disk
-    fs::write(&dotreplit_filepath, doc.to_string())
-        .with_context(|| format!("error: writing file: {:?}", &dotreplit_filepath))?;
-    Ok("".to_string())
+    if changed {
+        fs::write(&dotreplit_filepath, doc.to_string())
+            .with_context(|| format!("error: writing file: {:?}", &dotreplit_filepath))?;
+    }
+    Ok(("".to_string(), outputs))
 }
