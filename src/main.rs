@@ -125,7 +125,7 @@ fn do_edits(
                 handle_add(&path, &value, &mut doc)?
             }
             OpKind::Get => {
-                let value = traversal::traverse(&path, &mut doc, TraverseOps::Get)?;
+                let value = traversal::traverse(TraverseOps::Get, &mut doc, &path)?;
                 outputs.push(value);
             }
             OpKind::Remove => {

@@ -25,7 +25,7 @@ value:           Representation of a TOML Value (as part of a Key/Value Pair).
 
 */
 
-pub fn traverse<'a>(field: &str, doc: &'a mut DocumentMut, op: TraverseOps) -> Result<Json> {
+pub fn traverse<'a>(op: TraverseOps, doc: &'a mut DocumentMut, field: &str) -> Result<Json> {
     let path_split = field.split('/').collect::<Vec<&str>>();
     let path_slice = path_split.as_slice();
     let root_key = path_split.get(0).ok_or(anyhow!("Invalid query path!"))?;
