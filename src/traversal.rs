@@ -13,7 +13,7 @@ pub enum At<'a> {
 }
 
 pub enum TraverseOps {
-    Get(Box<dyn FnOnce(&mut At) -> Result<Json>>),
+    Get,
 }
 
 /*
@@ -42,7 +42,7 @@ fn do_traverse(path: &[&str], item: &mut At, op: TraverseOps) -> Result<Json> {
     }
 
     match op {
-        TraverseOps::Get(callback) => callback(item),
+        TraverseOps::Get => item.to_value(),
     }
 }
 

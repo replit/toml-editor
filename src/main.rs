@@ -16,6 +16,7 @@ use toml_edit::DocumentMut;
 
 use crate::adder::handle_add;
 use crate::remover::handle_remove;
+use crate::traversal::TraverseOps;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -124,8 +125,7 @@ fn do_edits(
                 handle_add(&path, &value, &mut doc)?
             }
             OpKind::Get => {
-                let op = traversal::TraverseOps::Get(Box::new(|val| val.to_value()));
-                let value = traversal::traverse(&path, &mut doc, op)?;
+                let value = traversal::traverse(&path, &mut doc, TraverseOps::Get)?;
                 outputs.push(value);
             }
             OpKind::Remove => {
