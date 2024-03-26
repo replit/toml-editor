@@ -11,7 +11,7 @@ use std::{io, io::prelude::*};
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, Value};
+use serde_json::{from_str, json, Value};
 use toml_edit::DocumentMut;
 
 use crate::adder::handle_add;
@@ -122,15 +122,17 @@ fn do_edits(
             OpKind::Add => {
                 let value = op.value.context("error: expected value to add")?;
                 changed = true;
-                handle_add(&path, &value, &mut doc)?
+                handle_add(&path, &value, &mut doc)?;
+                outputs.push(json!("ok"));
             }
-            OpKind::Get => {
-                let value = traversal::traverse(TraverseOps::Get, &mut doc, &path)?;
-                outputs.push(value);
-            }
+            OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
+                Ok(value) => outputs.push(value),
+                Err(error) => outputs.push(Value::Null),
+            },
             OpKind::Remove => {
                 changed = true;
-                handle_remove(&path, &mut doc)?
+                handle_remove(&path, &mut doc)?;
+                outputs.push(json!("ok"));
             }
         }
     }
