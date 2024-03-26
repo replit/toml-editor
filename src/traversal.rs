@@ -25,7 +25,11 @@ value:           Representation of a TOML Value (as part of a Key/Value Pair).
 
 */
 
-pub fn traverse<'a>(op: TraverseOps, doc: &'a mut DocumentMut, field: &str) -> Result<Json> {
+pub fn traverse<'a>(
+    op: TraverseOps,
+    doc: &'a mut DocumentMut,
+    field: &str,
+) -> Result<Option<Json>> {
     let path_split = field.split('/').collect::<Vec<&str>>();
     let path_slice = path_split.as_slice();
     let root_key = path_split.get(0).ok_or(anyhow!("Invalid query path!"))?;
@@ -36,25 +40,27 @@ pub fn traverse<'a>(op: TraverseOps, doc: &'a mut DocumentMut, field: &str) -> R
     do_traverse(&path_slice[1..], &mut At::Item::<'a>(item), op)
 }
 
-fn do_traverse(path: &[&str], item: &mut At, op: TraverseOps) -> Result<Json> {
+fn do_traverse(path: &[&str], item: &mut At, op: TraverseOps) -> Result<Option<Json>> {
     if !path.is_empty() {
         return item.fold(path[0], &path[1..], op);
     }
 
     match op {
-        TraverseOps::Get => item.to_value(),
+        TraverseOps::Get => item.to_value().map(|v| Some(v)),
     }
 }
 
 impl At<'_> {
-    fn fold(&mut self, key: &str, path: &[&str], op: TraverseOps) -> Result<Json> {
+    fn fold(&mut self, key: &str, path: &[&str], op: TraverseOps) -> Result<Option<Json>> {
         match self {
             At::Array(arr) => {
                 let index = key
                     .parse::<usize>()
                     .map_err(|_| anyhow!("Key is not a valid integer"))?;
-                let member = arr.get_mut(index).ok_or(anyhow!("Array out of range"))?;
-                do_traverse(path, &mut At::Value(member), op)
+                match arr.get_mut(index) {
+                    Some(v) => do_traverse(path, &mut At::Value(v), op),
+                    None => Ok(None),
+                }
             }
             At::ArrayOfTables(aar) => {
                 let index = key

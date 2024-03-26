@@ -126,8 +126,11 @@ fn do_edits(
                 outputs.push(json!("ok"));
             }
             OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
-                Ok(value) => outputs.push(value),
-                Err(error) => outputs.push(Value::Null),
+                Ok(value) => outputs.push(value.unwrap_or_default()),
+                Err(error) => {
+                    eprintln!("Error processing {}: {}", path, error);
+                    outputs.push(Value::Null)
+                }
             },
             OpKind::Remove => {
                 changed = true;
