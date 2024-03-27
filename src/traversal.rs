@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use anyhow::{anyhow, Result};
 use serde_json::Map;
 use serde_json::Value as Json;
@@ -30,66 +32,99 @@ pub fn traverse<'a>(
     doc: &'a mut DocumentMut,
     field: &str,
 ) -> Result<Option<Json>> {
-    let path_split = field.split('/').collect::<Vec<&str>>();
-    let path_slice = path_split.as_slice();
-    let root_key = path_split.get(0).ok_or(anyhow!("Invalid query path!"))?;
+    let split = field.split('/').collect::<Vec<&str>>();
+    let path_slice = split.as_slice();
+    let root_key = path_slice.get(0).ok_or(anyhow!("Invalid query path!"))?;
     let table = doc.as_table_mut();
     let item = table
         .get_mut(root_key)
         .ok_or(anyhow!("Missing table for traversal"))?;
-    do_traverse(&path_slice[1..], &mut At::Item::<'a>(item), op)
-}
 
-fn do_traverse(path: &[&str], item: &mut At, op: TraverseOps) -> Result<Option<Json>> {
-    if !path.is_empty() {
-        return item.fold(path[0], &path[1..], op);
+    let mut current: ControlFlow<Result<Option<Json>>, At> =
+        ControlFlow::Continue(At::Item::<'a>(item));
+    let mut path = &path_slice[1..];
+
+    let mut result: Result<At> = Err(anyhow!("Did not reach a value"));
+    while let ControlFlow::Continue(at) = current {
+        match path {
+            [] => {
+                result = Ok(at);
+                break;
+            }
+            [key, rest @ ..] => {
+                path = rest;
+                current = at.down_field(key);
+            }
+        }
     }
 
     match op {
-        TraverseOps::Get => item.to_value().map(|v| Some(v)),
+        TraverseOps::Get => result?.to_value().map(|v| Some(v)),
     }
 }
 
 impl At<'_> {
-    fn fold(&mut self, key: &str, path: &[&str], op: TraverseOps) -> Result<Option<Json>> {
+    fn down_field(self, key: &str) -> ControlFlow<Result<Option<Json>>, Self> {
         match self {
-            At::Array(arr) => {
-                let index = key
+            Self::Array(arr) => {
+                match key
                     .parse::<usize>()
-                    .map_err(|_| anyhow!("Key is not a valid integer"))?;
-                match arr.get_mut(index) {
-                    Some(v) => do_traverse(path, &mut At::Value(v), op),
-                    None => Ok(None),
+                    .map_err(|_| anyhow!("Key is not a valid integer"))
+                {
+                    Ok(index) => match arr.get_mut(index) {
+                        Some(v) => ControlFlow::Continue(Self::Value(v)),
+                        None => ControlFlow::Break(Ok(None)),
+                    },
+                    Err(error) => ControlFlow::Break(Err(error)),
                 }
             }
-            At::ArrayOfTables(aar) => {
-                let index = key
+            Self::ArrayOfTables(aar) => {
+                match key
                     .parse::<usize>()
-                    .map_err(|_| anyhow!("Key is not a valid usize"))?;
-                let member = aar.get_mut(index).ok_or(anyhow!("Array out of range"))?;
-                do_traverse(path, &mut At::Table(member), op)
+                    .map_err(|_| anyhow!("Key is not a valid usize"))
+                {
+                    Ok(index) => match aar.get_mut(index).ok_or(anyhow!("Array out of range")) {
+                        Ok(member) => ControlFlow::Continue(Self::Table(member)),
+                        Err(error) => ControlFlow::Break(Err(error)),
+                    },
+                    Err(error) => ControlFlow::Break(Err(error)),
+                }
             }
-            At::Item(item) => match item {
-                Item::ArrayOfTables(aar) => At::ArrayOfTables(aar).fold(key, path, op),
-                Item::Table(table) => At::Table(table).fold(key, path, op),
-                Item::Value(value) => At::Value(value).fold(key, path, op),
-                _ => Err(anyhow!("Unable to index item {:?} with {:?}", item, key)),
+            Self::Item(item) => match item {
+                Item::ArrayOfTables(aar) => Self::ArrayOfTables(aar).down_field(key),
+                Item::Table(table) => Self::Table(table).down_field(key),
+                Item::Value(value) => Self::Value(value).down_field(key),
+                _ => ControlFlow::Break(Err(anyhow!(
+                    "Unable to index item {:?} with {:?}",
+                    item,
+                    key
+                ))),
             },
-            At::Table(table) => {
-                let mut found = table
+            Self::Table(table) => {
+                match table
                     .get_mut(key)
-                    .ok_or(anyhow!("Unable to index table with {:?}", key))?;
-                do_traverse(path, &mut At::Item(&mut found), op)
-            }
-            At::Value(value) => match value {
-                Value::Array(arr) => At::Array(arr).fold(key, path, op),
-                Value::InlineTable(table) => {
-                    let mut found = table
-                        .get_mut(key)
-                        .ok_or(anyhow!("Unable to index table with {:?}", key))?;
-                    do_traverse(path, &mut At::Value(&mut found), op)
+                    .ok_or(anyhow!("Unable to index table with {:?}", key))
+                {
+                    Ok(found) => ControlFlow::Continue(Self::Item(found)),
+                    Err(error) => ControlFlow::Break(Err(error)),
                 }
-                _ => Err(anyhow!("Unable to index value {:?} with {:?}", value, key)),
+            }
+            Self::Value(value) => match value {
+                Value::Array(arr) => Self::Array(arr).down_field(key),
+                Value::InlineTable(table) => {
+                    match table
+                        .get_mut(key)
+                        .ok_or(anyhow!("Unable to index table with {:?}", key))
+                    {
+                        Ok(found) => ControlFlow::Continue(Self::Value(found)),
+                        Err(error) => ControlFlow::Break(Err(error)),
+                    }
+                }
+                _ => ControlFlow::Break(Err(anyhow!(
+                    "Unable to index value {:?} with {:?}",
+                    value,
+                    key
+                ))),
             },
         }
     }
