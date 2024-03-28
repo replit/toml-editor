@@ -193,7 +193,9 @@ glub = "group"
     remove_test!(
         test_remove_inline_array,
         "arr/1",
-        "arr = [1, 2, 3, 4] # comment".parse::<DocumentMut>().unwrap(),
+        "arr = [1, 2, 3, 4] # comment"
+            .parse::<DocumentMut>()
+            .unwrap(),
         "arr = [1, 3, 4] # comment"
     );
 
