@@ -2,10 +2,13 @@
   description = "A toml editor that preserves formatting.";
 
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+  inputs.nix-github-actions.url = "github:nix-community/nix-github-actions";
+  inputs.nix-github-actions.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = {
     self,
     nixpkgs,
+    nix-github-actions,
   }: let
     systems = [
       "aarch64-darwin"
@@ -30,5 +33,8 @@
       fmt = pkgs.callPackage ./nix/fmt {};
     });
     formatter = eachSystem (system: self.packages.${system}.fmt);
+    githubActions = nix-github-actions.lib.mkGithubMatrix {
+      checks = nixpkgs.lib.getAttrs [ "x86_64-linux" ] self.packages;
+    };
   };
 }
