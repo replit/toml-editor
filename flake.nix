@@ -33,8 +33,9 @@
       fmt = pkgs.callPackage ./nix/fmt {};
     });
     formatter = eachSystem (system: self.packages.${system}.fmt);
+    checks.x86_64-linux.default = self.packages.x86_64-linux.toml-editor;
     githubActions = nix-github-actions.lib.mkGithubMatrix {
-      checks = nixpkgs.lib.getAttrs [ "x86_64-linux" ] self.packages;
+      checks = nixpkgs.lib.getAttrs [ "x86_64-linux" ] self.checks;
     };
   };
 }
