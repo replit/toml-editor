@@ -33,16 +33,10 @@ pub fn traverse<'a>(
     field: &str,
 ) -> Result<Option<Json>> {
     let split = field.split('/').collect::<Vec<&str>>();
-    let path_slice = split.as_slice();
-    let root_key = path_slice.get(0).ok_or(anyhow!("Invalid query path!"))?;
+    let mut path = split.as_slice();
     let table = doc.as_table_mut();
-    let item = table
-        .get_mut(root_key)
-        .ok_or(anyhow!("Missing table for traversal"))?;
 
-    let mut current: ControlFlow<Result<Option<Json>>, At> =
-        ControlFlow::Continue(At::Item::<'a>(item));
-    let mut path = &path_slice[1..];
+    let mut current: ControlFlow<Result<()>, At> = ControlFlow::Continue(At::Table::<'a>(table));
 
     let mut result: Result<At> = Err(anyhow!("Did not reach a value"));
     while let ControlFlow::Continue(at) = current {
@@ -64,7 +58,13 @@ pub fn traverse<'a>(
 }
 
 impl At<'_> {
-    fn down_field(self, key: &str) -> ControlFlow<Result<Option<Json>>, Self> {
+    // TODO: The rewrapping here happens haphazardly.
+    // To do this properly, we should either:
+    // 1. separate the rewrapping with an interim function that applies these
+    //    rewrite rules, ensuring that we always deal with At
+    // 2. Get rid of At in favor of dealing directly with the underlying member
+    //    types, decomposing down_field into constituent functions.
+    fn down_field(self, key: &str) -> ControlFlow<Result<()>, Self> {
         match self {
             Self::Array(arr) => {
                 match key
@@ -73,7 +73,7 @@ impl At<'_> {
                 {
                     Ok(index) => match arr.get_mut(index) {
                         Some(v) => ControlFlow::Continue(Self::Value(v)),
-                        None => ControlFlow::Break(Ok(None)),
+                        None => ControlFlow::Break(Ok(())),
                     },
                     Err(error) => ControlFlow::Break(Err(error)),
                 }
