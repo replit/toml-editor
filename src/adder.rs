@@ -13,7 +13,8 @@ pub fn handle_add(
     table_header_path: Option<String>,
     dotted_path: Option<String>,
     value: &str,
-    doc: &mut DocumentMut) -> Result<()> {
+    doc: &mut DocumentMut,
+) -> Result<()> {
     match table_header_path {
         Some(thpath) => {
             let dpath = dotted_path.context("error: expected dotted_path to add")?;
@@ -128,7 +129,8 @@ fn handle_add_with_table_header_path(
     table_header_path: &str,
     dotted_path: &str,
     value: &str,
-    doc: &mut DocumentMut) -> Result<()> {
+    doc: &mut DocumentMut,
+) -> Result<()> {
     let table_header_path_vec = table_header_path
         .split('/')
         .map(|s| s.to_string())
