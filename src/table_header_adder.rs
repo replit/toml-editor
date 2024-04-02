@@ -35,19 +35,14 @@ pub fn add_value_with_table_header_and_dotted_path(
                 None | Some(Item::None) => {
                     let mut inner_table = Table::new();
                     inner_table.set_dotted(table_header_path.len() > 1);
-                    let res = add_value_with_table_header_and_dotted_path(
+                    add_value_with_table_header_and_dotted_path(
                         &mut inner_table,
                         &table_header_path[1..],
                         dotted_path,
                         value
-                    );
-                    match res {
-                        Ok(_) => {
-                            table.insert(field, Item::Table(inner_table));
-                            Ok(())
-                        },
-                        Err(_) => res,
-                    }
+                    )
+                    .map(|_| table.insert(field, Item::Table(inner_table)))
+                    .map(|_| ())
                 }
                 Some(Item::Value(_)) => {
                     bail!("cannot set a key on a non-table")
@@ -81,18 +76,13 @@ fn add_value_with_dotted_path(table: &mut Table, dotted_path: &[String], value: 
                     if dotted_path.len() > 1 {
                         let mut inner_table = Table::new();
                         inner_table.set_dotted(true);
-                        let res = add_value_with_dotted_path(
+                        return add_value_with_dotted_path(
                             &mut inner_table,
                             &dotted_path[1..],
                             value
-                        );
-                        match res {
-                            Ok(_) => {
-                                table.insert(field, Item::Table(inner_table));
-                                Ok(())
-                            }
-                            _ => res
-                        }
+                        )
+                        .map(|_| table.insert(field, Item::Table(inner_table)))
+                        .map(|_| ());
                     } else {
                         table.insert(field, value);
                         Ok(())
