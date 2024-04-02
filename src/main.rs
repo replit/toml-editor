@@ -12,7 +12,8 @@ use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, json, Value};
-use toml_edit::DocumentMut;
+use toml_edit::{table, value, DocumentMut, Table, Item};
+use crate::field_finder::{get_field, DoInsert, TomlValue};
 
 use crate::adder::handle_add;
 use crate::remover::handle_remove;
@@ -49,6 +50,8 @@ enum OpKind {
 struct Op {
     op: OpKind,
     path: String,
+    table_header_path: Option<String>,
+    dotted_path: Option<String>,
     value: Option<String>,
 }
 
@@ -66,6 +69,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let dotreplit_filepath = args.path;
 
+    // return play();
+
     // read line by line from stdin until eof
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
@@ -78,6 +83,59 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+// fn play() -> Result<()> {
+//     let toml = fs::read_to_string("test.toml")
+//     .expect("Should have been able to read the file");
+//     let mut doc = toml.parse::<DocumentMut>().expect("invalid doc");
+//     // let mut module_config = Table::new();
+//     // module_config.set_dotted(true);
+//     // let mut bundles = Table::new();
+//     // bundles.set_dotted(true);
+//     let table_header_path = vec!["moduleConfig"].iter().map(|s| s.to_string()).collect::<Vec<String>>();
+//     let dotted_path = vec!["interpreters", "ruby", "enable"].iter().map(|s| s.to_string()).collect::<Vec<String>>();
+//     _ = table_header_adder::add_value_with_table_header_and_dotted_path(&mut doc, &table_header_path, &dotted_path, value(false));
+//     // _ = add_value_with_dotted_path(&mut bundles, &path, value(true));
+//     // module_config.insert("bundles", Item::Table(bundles));
+//     // let mut go = Table::new();
+//     // go.insert("enable", value(true));
+//     // go.set_dotted(true);
+//     // bundles.insert("go", toml_edit::Item::Table(go));
+//     // module_config.insert("bundles", toml_edit::Item::Table(bundles));
+
+
+//     // doc.insert("moduleConfig", Item::Table(module_config));
+//     // println!("length: {}", path.len());
+//     // return insert_value_with_dotted_path(&mut go, &path, value(true));
+//     // match doc.get_mut("moduleConfig") {
+//     //     None | Some(toml_edit::Item::None) =>
+//     //     {
+//     //         let mut table = Table::new();
+//     //         insert_dotted_path(table, dotted_path, value);
+//     //         doc.insert("moduleConfig", table);
+//     //     }
+//     //     Some(toml_edit::Item::Table(existing_table)) => {
+//     //         insert_dotted_path(existing_table, dotted_path, value);
+//     //     }
+//     //     ...
+//     // };
+
+
+//     // let doc_table = doc.as_table_mut();
+//     // let module_config = doc_table.get_mut("moduleConfig");
+//     // println!("module_config {:?}", module_config);
+//     // let table = match module_config {
+//     //     None => {
+//     //         doc["moduleConfig"] = table();
+//     //     }
+//     //     Some( => ()
+//     // }
+
+
+//     // println!("module_config: {}", module_config);
+//     println!("{}", doc.to_string());
+//     Ok(())
+// }
 
 fn handle_message(dotreplit_filepath: &Path, msg: &str, return_output: bool) -> Res {
     match do_edits(dotreplit_filepath, msg, return_output) {
@@ -122,7 +180,13 @@ fn do_edits(
             OpKind::Add => {
                 let value = op.value.context("error: expected value to add")?;
                 changed = true;
-                handle_add(&path, &value, &mut doc)?;
+                handle_add(
+                    &path,
+                    op.table_header_path,
+                    op.dotted_path,
+                    &value,
+                    &mut doc
+                )?;
                 outputs.push(json!("ok"));
             }
             OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {

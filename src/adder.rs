@@ -1,3 +1,6 @@
+#[path = "./table_header_adder.rs"]
+mod table_header_adder;
+
 use anyhow::{bail, Context, Result};
 use serde_json::{from_str, Value as JValue};
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value};
@@ -5,35 +8,48 @@ use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Val
 use crate::converter::json_to_toml;
 use crate::field_finder::{get_field, DoInsert, TomlValue};
 
-pub fn handle_add(field: &str, value: &str, doc: &mut DocumentMut) -> Result<()> {
-    let mut path_split = field
-        .split('/')
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>();
-
-    let last_field = path_split.pop().context("Path is empty")?;
-
-    let final_field_value =
-        get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
-
-    let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
-
-    let is_inline = matches!(
-        final_field_value,
-        TomlValue::InlineTable(_) | TomlValue::Array(_) | TomlValue::Value(_)
-    );
-
-    let field_value_toml: Item = json_to_toml(&field_value_json, is_inline)
-        .context("converting value in add request from json to toml")?;
-
-    match final_field_value {
-        TomlValue::Table(table) => add_in_table(table, &last_field, field_value_toml),
-        TomlValue::ArrayOfTables(array) => {
-            add_in_array_of_tables(array, &last_field, field_value_toml)
+pub fn handle_add(
+    field: &str,
+    table_header_path: Option<String>,
+    dotted_path: Option<String>,
+    value: &str,
+    doc: &mut DocumentMut) -> Result<()> {
+    match table_header_path {
+        Some(thpath) => {
+            let dpath = dotted_path.context("error: expected dotted_path to add")?;
+            handle_add_with_table_header_path(&thpath, &dpath, value, doc)
         }
-        TomlValue::Array(array) => add_in_array(array, &last_field, field_value_toml),
-        TomlValue::InlineTable(table) => add_in_inline_table(table, &last_field, field_value_toml),
-        TomlValue::Value(value) => add_in_generic_value(value, &last_field, field_value_toml),
+        None => {
+            let mut path_split = field
+                .split('/')
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+
+            let last_field = path_split.pop().context("Path is empty")?;
+
+            let final_field_value =
+                get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
+
+            let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
+
+            let is_inline = matches!(
+                final_field_value,
+                TomlValue::InlineTable(_) | TomlValue::Array(_) | TomlValue::Value(_)
+            );
+
+            let field_value_toml: Item = json_to_toml(&field_value_json, is_inline)
+                .context("converting value in add request from json to toml")?;
+
+            match final_field_value {
+                TomlValue::Table(table) => add_in_table(table, &last_field, field_value_toml),
+                TomlValue::ArrayOfTables(array) => {
+                    add_in_array_of_tables(array, &last_field, field_value_toml)
+                }
+                TomlValue::Array(array) => add_in_array(array, &last_field, field_value_toml),
+                TomlValue::InlineTable(table) => add_in_inline_table(table, &last_field, field_value_toml),
+                TomlValue::Value(value) => add_in_generic_value(value, &last_field, field_value_toml),
+            }
+        }
     }
 }
 
@@ -108,6 +124,25 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item)
     }
 }
 
+fn handle_add_with_table_header_path(
+    table_header_path: &str,
+    dotted_path: &str,
+    value: &str,
+    doc: &mut DocumentMut) -> Result<()> {
+    let mut table_header_path_vec = table_header_path
+    .split('/')
+    .map(|s| s.to_string())
+    .collect::<Vec<String>>();
+    let mut dotted_path_vec = dotted_path
+    .split('/')
+    .map(|s| s.to_string())
+    .collect::<Vec<String>>();
+    let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
+    let field_value_toml: Item = json_to_toml(&field_value_json, true)
+        .context("converting value in add request from json to toml")?;
+    return table_header_adder::add_value_with_table_header_and_dotted_path(doc, &table_header_path_vec, &dotted_path_vec, field_value_toml);
+}
+
 #[cfg(test)]
 mod adder_tests {
     use super::*;
@@ -143,7 +178,7 @@ mod adder_tests {
                 let field = $field;
                 let value = $value.to_string();
 
-                let result = handle_add(field, &value, &mut doc);
+                let result = handle_add(field, None, None, &value, &mut doc);
                 assert!(result.is_ok(), "error: {:?}", result);
                 assert_eq!(doc.to_string().trim(), expected.trim());
             }
