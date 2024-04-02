@@ -1,6 +1,18 @@
 use toml_edit::{Table, Item};
 use anyhow::{bail, Result};
 
+/*
+Perform an "add" at a table_header_path followed by a dotted_path.
+Example:
+table_header_path = "a/b"
+dotted_path = "c/d"
+value = "true"
+yields:
+```
+[a.b]
+c.b = true
+```
+*/
 pub fn add_value_with_table_header_and_dotted_path(
     table: &mut Table,
     table_header_path: &[String],
@@ -13,34 +25,51 @@ pub fn add_value_with_table_header_and_dotted_path(
             match table.get_mut(field) {
                 Some(Item::Table(ref mut inner_table)) => {
                     inner_table.set_dotted(table_header_path.len() > 1);
-                    _ = add_value_with_table_header_and_dotted_path(
+                    add_value_with_table_header_and_dotted_path(
                         inner_table,
                         &table_header_path[1..],
                         dotted_path,
                         value
-                    );
-                    Ok(())
+                    )
                 }
-                None => {
+                None | Some(Item::None) => {
                     let mut inner_table = Table::new();
                     inner_table.set_dotted(table_header_path.len() > 1);
-                    _ = add_value_with_table_header_and_dotted_path(
+                    let res = add_value_with_table_header_and_dotted_path(
                         &mut inner_table,
                         &table_header_path[1..],
                         dotted_path,
                         value
                     );
-                    table.insert(field, Item::Table(inner_table));
-                    Ok(())
+                    match res {
+                        Ok(_) => {
+                            table.insert(field, Item::Table(inner_table));
+                            Ok(())
+                        },
+                        Err(_) => res,
+                    }
                 }
-                Some(_) => {
+                Some(Item::Value(_)) => {
                     bail!("cannot set a key on a non-table")
+                }
+                Some(Item::ArrayOfTables(_)) => {
+                    bail!("cannot set a key on an array of tables")
                 }
             }
         }
     }
 }
 
+/*
+Perform an "add" at a dotted_path.
+Example:
+dotted_path = "a/b"
+value = "true"
+yields:
+```
+a.b = true
+```
+*/
 fn add_value_with_dotted_path(table: &mut Table, dotted_path: &[String], value: Item) -> Result<()> {
     match dotted_path.get(0) {
         None => {
@@ -48,40 +77,50 @@ fn add_value_with_dotted_path(table: &mut Table, dotted_path: &[String], value: 
         },
         Some(field) => {
             match table.get_mut(field) {
-                None => {
+                None | Some(Item::None) => {
                     if dotted_path.len() > 1 {
                         let mut inner_table = Table::new();
                         inner_table.set_dotted(true);
-                        _ = add_value_with_dotted_path(
+                        let res = add_value_with_dotted_path(
                             &mut inner_table,
                             &dotted_path[1..],
                             value
                         );
-                        table.insert(field, Item::Table(inner_table));
+                        match res {
+                            Ok(_) => {
+                                table.insert(field, Item::Table(inner_table));
+                                Ok(())
+                            }
+                            _ => res
+                        }
                     } else {
                         table.insert(field, value);
+                        Ok(())
                     }
-                    Ok(())
                 }
                 Some(Item::Table(ref mut inner_table)) => {
                     if dotted_path.len() > 1 {
                         inner_table.set_dotted(true);
-                        _ = add_value_with_dotted_path(
+                        return add_value_with_dotted_path(
                             inner_table,
                             &dotted_path[1..],
                             value
                         );
                     } else {
                         table.insert(field, value);
+                        Ok(())
                     }
-                    Ok(())
                 }
                 Some(Item::Value(_)) => {
-                    table.insert(field, value);
-                    Ok(())
+                    if dotted_path.len() == 1 {
+                        table.insert(field, value);
+                        Ok(())
+                    } else {
+                        bail!("Cannot overwrite a non-table with a table")
+                    }
                 }
-                Some(_) => {
-                    bail!("Cannot add key to a non-table")
+                Some(Item::ArrayOfTables(_)) => {
+                    bail!("Cannot add key to a array of tables")
                 }
             }
         }
@@ -146,4 +185,21 @@ interpreter.ruby.enable = true
         _ = add_value_with_table_header_and_dotted_path(&mut doc, &table_header_path, &dotted_path, value("3.2.3"));
         assert_eq!(doc.to_string(), "\n[moduleConfig]\ninterpreter.ruby.enable = true\ninterpreters.ruby.version = \"3.2.3\"\n        ");
     }
+
+    #[test]
+    fn test_error_when_adding_key_to_non_table() {
+        let mut doc = r#"
+[moduleConfig]
+interpreters.ruby = "my dear"
+        "#.to_string().parse::<DocumentMut>()
+            .expect("invalid doc");
+        let table_header_path = vec!["moduleConfig"]
+        .iter().map(|s| s.to_string()).collect::<Vec<String>>();
+        let dotted_path = vec!["interpreters", "ruby", "version"]
+            .iter().map(|s| s.to_string()).collect::<Vec<String>>();
+        let res = &add_value_with_table_header_and_dotted_path(&mut doc, &table_header_path, &dotted_path, value("3.2.3"));
+        assert!(res.is_err());
+        assert_eq!(doc.to_string(), "\n[moduleConfig]\ninterpreters.ruby = \"my dear\"\n        ");
+    }
+
 }
