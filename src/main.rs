@@ -49,6 +49,8 @@ enum OpKind {
 struct Op {
     op: OpKind,
     path: String,
+    table_header_path: Option<String>,
+    dotted_path: Option<String>,
     value: Option<String>,
 }
 
@@ -122,7 +124,13 @@ fn do_edits(
             OpKind::Add => {
                 let value = op.value.context("error: expected value to add")?;
                 changed = true;
-                handle_add(&path, &value, &mut doc)?;
+                handle_add(
+                    &path,
+                    op.table_header_path,
+                    op.dotted_path,
+                    &value,
+                    &mut doc
+                )?;
                 outputs.push(json!("ok"));
             }
             OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
