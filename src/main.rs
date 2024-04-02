@@ -68,8 +68,6 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let dotreplit_filepath = args.path;
 
-    // return play();
-
     // read line by line from stdin until eof
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
