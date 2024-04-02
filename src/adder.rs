@@ -1,4 +1,3 @@
-#[path = "./table_header_adder.rs"]
 mod table_header_adder;
 
 use anyhow::{bail, Context, Result};
