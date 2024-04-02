@@ -12,8 +12,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, json, Value};
-use toml_edit::{table, value, DocumentMut, Table, Item};
-use crate::field_finder::{get_field, DoInsert, TomlValue};
+use toml_edit::DocumentMut;
 
 use crate::adder::handle_add;
 use crate::remover::handle_remove;

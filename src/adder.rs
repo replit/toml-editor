@@ -129,14 +129,14 @@ fn handle_add_with_table_header_path(
     dotted_path: &str,
     value: &str,
     doc: &mut DocumentMut) -> Result<()> {
-    let mut table_header_path_vec = table_header_path
-    .split('/')
-    .map(|s| s.to_string())
-    .collect::<Vec<String>>();
-    let mut dotted_path_vec = dotted_path
-    .split('/')
-    .map(|s| s.to_string())
-    .collect::<Vec<String>>();
+    let table_header_path_vec = table_header_path
+        .split('/')
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let dotted_path_vec = dotted_path
+        .split('/')
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
     let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
     let field_value_toml: Item = json_to_toml(&field_value_json, true)
         .context("converting value in add request from json to toml")?;
