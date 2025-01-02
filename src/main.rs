@@ -31,23 +31,23 @@ struct Args {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "op")]
 enum OpKind {
     /// Creates the field if it doesn't already exist and sets it
     #[serde(rename = "add")]
-    Add,
+    Add(Op),
 
     /// Gets the value at the specified path, returned as JSON
     #[serde(rename = "get")]
-    Get,
+    Get(Op),
 
     /// Removes the field if it exists
     #[serde(rename = "remove")]
-    Remove,
+    Remove(Op),
 }
 
 #[derive(Serialize, Deserialize)]
 struct Op {
-    op: OpKind,
     path: String,
     table_header_path: Option<String>,
     dotted_path: Option<String>,
@@ -102,7 +102,7 @@ fn do_edits(
     return_output: bool,
 ) -> Result<(String, Vec<Value>)> {
     // parse line as json
-    let json: Vec<Op> = from_str(msg)?;
+    let json: Vec<OpKind> = from_str(msg)?;
 
     // we need to re-read the file each time since the user might manually edit the
     // file and so we need to make sure we have the most up to date version.
@@ -119,8 +119,8 @@ fn do_edits(
     let mut changed: bool = false;
     let mut outputs: Vec<Value> = vec![];
     for op in json {
-        match op.op {
-            OpKind::Add => {
+        match op {
+            OpKind::Add(op) => {
                 let value = op.value.context("error: expected value to add")?;
                 changed = true;
                 handle_add(
@@ -132,14 +132,14 @@ fn do_edits(
                 )?;
                 outputs.push(json!("ok"));
             }
-            OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &op.path) {
+            OpKind::Get(op) => match traversal::traverse(TraverseOps::Get, &mut doc, &op.path) {
                 Ok(value) => outputs.push(value.unwrap_or_default()),
                 Err(error) => {
                     eprintln!("Error processing {}: {}", op.path, error);
                     outputs.push(Value::Null)
                 }
             },
-            OpKind::Remove => {
+            OpKind::Remove(op) => {
                 changed = true;
                 handle_remove(&op.path, &mut doc)?;
                 outputs.push(json!("ok"));
