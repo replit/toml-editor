@@ -39,11 +39,11 @@ enum OpKind {
 
     /// Gets the value at the specified path, returned as JSON
     #[serde(rename = "get")]
-    Get(Op),
+    Get { path: String },
 
     /// Removes the field if it exists
     #[serde(rename = "remove")]
-    Remove(Op),
+    Remove { path: String },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -132,16 +132,16 @@ fn do_edits(
                 )?;
                 outputs.push(json!("ok"));
             }
-            OpKind::Get(op) => match traversal::traverse(TraverseOps::Get, &mut doc, &op.path) {
+            OpKind::Get { path } => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
                 Ok(value) => outputs.push(value.unwrap_or_default()),
                 Err(error) => {
-                    eprintln!("Error processing {}: {}", op.path, error);
+                    eprintln!("Error processing {}: {}", path, error);
                     outputs.push(Value::Null)
                 }
             },
-            OpKind::Remove(op) => {
+            OpKind::Remove { path } => {
                 changed = true;
-                handle_remove(&op.path, &mut doc)?;
+                handle_remove(&path, &mut doc)?;
                 outputs.push(json!("ok"));
             }
         }
