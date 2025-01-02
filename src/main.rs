@@ -119,13 +119,12 @@ fn do_edits(
     let mut changed: bool = false;
     let mut outputs: Vec<Value> = vec![];
     for op in json {
-        let path = op.path;
         match op.op {
             OpKind::Add => {
                 let value = op.value.context("error: expected value to add")?;
                 changed = true;
                 handle_add(
-                    &path,
+                    &op.path,
                     op.table_header_path,
                     op.dotted_path,
                     &value,
@@ -133,16 +132,16 @@ fn do_edits(
                 )?;
                 outputs.push(json!("ok"));
             }
-            OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
+            OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &op.path) {
                 Ok(value) => outputs.push(value.unwrap_or_default()),
                 Err(error) => {
-                    eprintln!("Error processing {}: {}", path, error);
+                    eprintln!("Error processing {}: {}", op.path, error);
                     outputs.push(Value::Null)
                 }
             },
             OpKind::Remove => {
                 changed = true;
-                handle_remove(&path, &mut doc)?;
+                handle_remove(&op.path, &mut doc)?;
                 outputs.push(json!("ok"));
             }
         }
