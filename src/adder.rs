@@ -15,10 +15,7 @@ pub fn handle_add(
     doc: &mut DocumentMut,
 ) -> Result<()> {
     match table_header_path {
-        Some(thpath) => {
-            let dpath = dotted_path.context("error: expected dotted_path to add")?;
-            handle_add_with_table_header_path(&thpath, &dpath, value, doc)
-        }
+        Some(thpath) => handle_add_with_table_header_path(&thpath, dotted_path, value, doc),
         None => {
             let mut path_split = field
                 .split('/')
@@ -131,7 +128,7 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item)
 
 fn handle_add_with_table_header_path(
     table_header_path: &str,
-    dotted_path: &str,
+    dotted_path: Option<String>,
     value: &str,
     doc: &mut DocumentMut,
 ) -> Result<()> {
@@ -139,19 +136,23 @@ fn handle_add_with_table_header_path(
         .split('/')
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
-    let dotted_path_vec = dotted_path
-        .split('/')
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>();
+    let dotted_path_vec =
+        dotted_path.map(|s| s.split('/').map(|s| s.to_string()).collect::<Vec<String>>());
     let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
     let field_value_toml: Item = json_to_toml(&field_value_json, true)
         .context("converting value in add request from json to toml")?;
-    return table_header_adder::add_value_with_table_header_and_dotted_path(
-        doc,
-        &table_header_path_vec,
-        &dotted_path_vec,
-        field_value_toml,
-    );
+
+    return match dotted_path_vec {
+        Some(dp) => table_header_adder::add_value_with_table_header_and_dotted_path(
+            doc,
+            &table_header_path_vec,
+            &dp,
+            field_value_toml,
+        ),
+        None => {
+            panic!("Unhandled case of no dotted_path_vec");
+        }
+    };
 }
 
 #[cfg(test)]
