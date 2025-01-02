@@ -27,10 +27,11 @@ pub fn handle_add(
 
             let last_field = path_split.pop().context("Path is empty")?;
 
-            let final_field_value =
-                get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
+            let final_field_value = get_field(&path_split, &last_field, DoInsert::Yes, doc)
+                .context("Could not find field")?;
 
-            let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
+            let field_value_json: JValue =
+                from_str(value).context("parsing value field in add request")?;
 
             let is_inline = matches!(
                 final_field_value,
@@ -46,8 +47,12 @@ pub fn handle_add(
                     add_in_array_of_tables(array, &last_field, field_value_toml)
                 }
                 TomlValue::Array(array) => add_in_array(array, &last_field, field_value_toml),
-                TomlValue::InlineTable(table) => add_in_inline_table(table, &last_field, field_value_toml),
-                TomlValue::Value(value) => add_in_generic_value(value, &last_field, field_value_toml),
+                TomlValue::InlineTable(table) => {
+                    add_in_inline_table(table, &last_field, field_value_toml)
+                }
+                TomlValue::Value(value) => {
+                    add_in_generic_value(value, &last_field, field_value_toml)
+                }
             }
         }
     }
@@ -141,7 +146,12 @@ fn handle_add_with_table_header_path(
     let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
     let field_value_toml: Item = json_to_toml(&field_value_json, true)
         .context("converting value in add request from json to toml")?;
-    return table_header_adder::add_value_with_table_header_and_dotted_path(doc, &table_header_path_vec, &dotted_path_vec, field_value_toml);
+    return table_header_adder::add_value_with_table_header_and_dotted_path(
+        doc,
+        &table_header_path_vec,
+        &dotted_path_vec,
+        field_value_toml,
+    );
 }
 
 #[cfg(test)]

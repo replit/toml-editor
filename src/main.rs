@@ -129,7 +129,7 @@ fn do_edits(
                     op.table_header_path,
                     op.dotted_path,
                     &value,
-                    &mut doc
+                    &mut doc,
                 )?;
                 outputs.push(json!("ok"));
             }
