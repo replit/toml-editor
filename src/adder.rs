@@ -6,18 +6,19 @@ use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Val
 
 use crate::converter::json_to_toml;
 use crate::field_finder::{get_field, DoInsert, TomlValue};
+use crate::AddOp;
 
 pub fn handle_add(
-    field: &str,
-    table_header_path: Option<String>,
-    dotted_path: Option<String>,
-    value: &str,
     doc: &mut DocumentMut,
+    op: AddOp,
 ) -> Result<()> {
-    match table_header_path {
-        Some(thpath) => handle_add_with_table_header_path(&thpath, dotted_path, value, doc),
+    match op.table_header_path {
+        Some(thpath) => {
+            let value = op.value.context("error: expected value to add")?;
+            handle_add_with_table_header_path(&thpath, op.dotted_path, &value, doc)
+        },
         None => {
-            let mut path_split = field
+            let mut path_split = op.path
                 .split('/')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>();
@@ -27,8 +28,9 @@ pub fn handle_add(
             let final_field_value = get_field(&path_split, &last_field, DoInsert::Yes, doc)
                 .context("Could not find field")?;
 
+            let value = op.value.context("error: expected value to add")?;
             let field_value_json: JValue =
-                from_str(value).context("parsing value field in add request")?;
+                from_str(&value).context("parsing value field in add request")?;
 
             let is_inline = matches!(
                 final_field_value,
@@ -158,7 +160,7 @@ fn handle_add_with_table_header_path(
 #[cfg(test)]
 mod adder_tests {
     use super::*;
-    use toml_edit::{DocumentMut, TomlError};
+    use toml_edit::TomlError;
 
     fn get_dotreplit_content_with_formatting() -> Result<DocumentMut, TomlError> {
         r#"test = "yo"
@@ -187,10 +189,16 @@ mod adder_tests {
             fn $name() {
                 let mut doc = $contents;
                 let expected = $expected;
-                let field = $field;
-                let value = $value.to_string();
+                let field = $field.to_owned();
+                let value = Some($value.to_string());
 
-                let result = handle_add(field, None, None, &value, &mut doc);
+                let op = AddOp {
+                    path: field,
+                    table_header_path: None,
+                    dotted_path: None,
+                    value: value,
+                };
+                let result = handle_add(&mut doc, op);
                 assert!(result.is_ok(), "error: {:?}", result);
                 assert_eq!(doc.to_string().trim(), expected.trim());
             }

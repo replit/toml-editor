@@ -35,7 +35,7 @@ struct Args {
 enum OpKind {
     /// Creates the field if it doesn't already exist and sets it
     #[serde(rename = "add")]
-    Add(Op),
+    Add(AddOp),
 
     /// Gets the value at the specified path, returned as JSON
     #[serde(rename = "get")]
@@ -47,7 +47,7 @@ enum OpKind {
 }
 
 #[derive(Serialize, Deserialize)]
-struct Op {
+struct AddOp {
     path: String,
     table_header_path: Option<String>,
     dotted_path: Option<String>,
@@ -121,15 +121,8 @@ fn do_edits(
     for op in json {
         match op {
             OpKind::Add(op) => {
-                let value = op.value.context("error: expected value to add")?;
                 changed = true;
-                handle_add(
-                    &op.path,
-                    op.table_header_path,
-                    op.dotted_path,
-                    &value,
-                    &mut doc,
-                )?;
+                handle_add(&mut doc, op)?;
                 outputs.push(json!("ok"));
             }
             OpKind::Get { path } => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
