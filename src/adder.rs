@@ -156,10 +156,9 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item)
 #[cfg(test)]
 mod adder_tests {
     use super::*;
-    use toml_edit::TomlError;
 
-    fn get_dotreplit_content_with_formatting() -> Result<DocumentMut, TomlError> {
-        r#"test = "yo"
+    const GET_DOTREPLIT_CONTENT_WITH_FORMATTING: &str = r#"
+test = "yo"
 [foo]
   bar = "baz"  # comment
   inlineTable = {a = "b", c = "d" }
@@ -174,16 +173,13 @@ mod adder_tests {
     [[foo.arr]]
         glub = "group"
 [[foo.arr]]
-        none = "all""#
-            .to_string()
-            .parse::<DocumentMut>()
-    }
+        none = "all""#;
 
     macro_rules! add_test {
         ($name:ident, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
             #[test]
             fn $name() {
-                let mut doc = $contents;
+                let mut doc = $contents.parse::<DocumentMut>().unwrap();
                 let expected = $expected;
                 let field = $field.to_owned();
                 let value = Some($value.to_string());
@@ -205,7 +201,7 @@ mod adder_tests {
         add_to_toml_basic,
         "new",
         "\"yo\"",
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 new = "yo"
@@ -231,7 +227,7 @@ new = "yo"
         add_to_toml_deep,
         "foo/bla/new",
         "\"yo\"",
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 [foo]
@@ -257,7 +253,7 @@ new = "yo"
         add_array,
         "new",
         r#"["a", "b", "c"]"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 new = ["a", "b", "c"]
@@ -283,7 +279,7 @@ new = ["a", "b", "c"]
         add_array_at_index,
         "foo/arr/1/glub",
         r#"{"hi": 123}"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 [foo]
@@ -310,7 +306,7 @@ hi = 123
         replace_large,
         "foo",
         r#"[1, 2, 3]"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 foo = [1, 2, 3]
@@ -321,7 +317,7 @@ foo = [1, 2, 3]
         simple_push_into_array,
         "arr/2",
         "123",
-        r#"arr = [1, 2]"#.parse::<DocumentMut>().unwrap(),
+        r#"arr = [1, 2]"#,
         r#"arr = [1, 2, 123]"#
     );
 
@@ -329,7 +325,7 @@ foo = [1, 2, 3]
         push_into_table_array,
         "foo/arr/3",
         r#"{}"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 [foo]
@@ -356,7 +352,7 @@ test = "yo"
         add_as_you_traverse,
         "foo/arr",
         r#""yup""#,
-        r#"meep = "nope""#.parse::<DocumentMut>().unwrap(),
+        r#"meep = "nope""#,
         r#"meep = "nope"
 
 [foo]
@@ -367,7 +363,7 @@ arr = "yup""#
         add_array_objects_deep,
         "foo/0/hi",
         r#"123"#,
-        r#"top = "hi""#.parse::<DocumentMut>().unwrap(),
+        r#"top = "hi""#,
         r#"top = "hi"
 
 [[foo]]
@@ -379,7 +375,7 @@ hi = 123
         add_array_objects,
         "foo/0",
         r#"{"hi": 123}"#,
-        r#"top = "hi""#.parse::<DocumentMut>().unwrap(),
+        r#"top = "hi""#,
         r#"top = "hi"
 
 [[foo]]
@@ -393,9 +389,7 @@ hi = 123
         r#"{"hi": 1234}"#,
         r#"top = "hi"
 [[foo]]
-hi = 123"#
-            .parse::<DocumentMut>()
-            .unwrap(),
+hi = 123"#,
         r#"top = "hi"
 [[foo]]
 hi = 123
@@ -419,9 +413,7 @@ PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
 REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 run = "echo heyo"
 
@@ -447,9 +439,7 @@ PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
 REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 [env]
 VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
@@ -474,9 +464,7 @@ PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
 REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 [env]
 VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
@@ -495,9 +483,7 @@ POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#,
         r#"
 run = "hi"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 run = "hi"
 
