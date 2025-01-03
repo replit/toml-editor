@@ -15,7 +15,7 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
     match op.table_header_path {
         Some(thpath) => {
             let value = op.value.context("error: expected value to add")?;
-            let table_header_path_vec = thpath
+            let mut table_header_path_vec = thpath
                 .split('/')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>();
@@ -26,11 +26,21 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
             let field_value_toml: Item = json_to_toml(&field_value_json, true)
                 .context("converting value in add request from json to toml")?;
 
+            let array_of_tables = if table_header_path_vec
+                .last()
+                .is_some_and(|key| key == "[[]]")
+            {
+                table_header_path_vec.pop();
+                true
+            } else {
+                false
+            };
             table_header_adder::add_value_with_table_header_and_dotted_path(
                 doc,
                 &table_header_path_vec,
                 dotted_path_vec,
                 field_value_toml,
+                array_of_tables,
             )
         }
         None => {

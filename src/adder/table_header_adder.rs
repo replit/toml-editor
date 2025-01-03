@@ -18,6 +18,7 @@ pub fn add_value_with_table_header_and_dotted_path(
     table_header_path: &[String],
     dotted_path: Option<Vec<String>>,
     value: Item,
+    array_of_tables: bool,
 ) -> Result<()> {
     match table_header_path.get(0) {
         None => {
@@ -48,6 +49,7 @@ pub fn add_value_with_table_header_and_dotted_path(
                     &table_header_path[1..],
                     dotted_path,
                     value,
+                    array_of_tables,
                 )?;
                 table.insert(field, Item::Table(inner_table));
                 Ok(())
@@ -137,6 +139,7 @@ mod table_header_adder_tests {
             &table_header_path,
             Some(dotted_path),
             value(true),
+            false,
         );
         assert_eq!(
             doc.to_string(),
@@ -160,6 +163,7 @@ mod table_header_adder_tests {
             &table_header_path,
             Some(dotted_path),
             value(true),
+            false,
         );
         assert_eq!(
             doc.to_string(),
@@ -189,6 +193,7 @@ bundles.go.enable = true
             &table_header_path,
             Some(dotted_path),
             value(true),
+            false,
         );
         assert_eq!(
             doc.to_string(),
@@ -218,6 +223,7 @@ interpreter.ruby.enable = true
             &table_header_path,
             Some(dotted_path),
             value("3.2.3"),
+            false,
         );
         assert_eq!(doc.to_string(), "\n[moduleConfig]\ninterpreter.ruby.enable = true\ninterpreters.ruby.version = \"3.2.3\"\n        ");
     }
@@ -244,6 +250,7 @@ interpreters.ruby = "my dear"
             &table_header_path,
             Some(dotted_path),
             value("3.2.3"),
+            false,
         );
         assert!(res.is_err());
         assert_eq!(
