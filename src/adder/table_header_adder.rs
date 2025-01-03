@@ -298,4 +298,17 @@ interpreters.ruby = "my dear"
 interpreters.ruby = "my dear"
         "#
     );
+
+    add_test!(
+        test_add_arrays_of_tables,
+        vec!["tool", "uv", "index", "[[]]"],
+        None,
+        {
+            let mut it = InlineTable::default();
+            it.insert("key", Value::String(Formatted::new("value".to_owned())));
+            Item::Value(Value::InlineTable(it))
+        },
+        "",
+        ""
+    );
 }
