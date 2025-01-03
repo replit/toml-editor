@@ -16,11 +16,13 @@ c.b = true
 pub fn add_value_with_table_header_and_dotted_path(
     table: &mut Table,
     table_header_path: &[String],
-    dotted_path: &[String],
+    dotted_path: Option<Vec<String>>,
     value: Item,
 ) -> Result<()> {
     match table_header_path.get(0) {
-        None => add_value_with_dotted_path(table, dotted_path, value),
+        None => {
+            add_value_with_dotted_path(table, dotted_path.expect("expected path").as_slice(), value)
+        }
         Some(field) => match table.get_mut(field) {
             Some(Item::Table(ref mut inner_table)) => {
                 inner_table.set_dotted(table_header_path.len() > 1);
@@ -126,7 +128,7 @@ mod table_header_adder_tests {
         _ = add_value_with_table_header_and_dotted_path(
             &mut doc,
             &table_header_path,
-            &dotted_path,
+            Some(dotted_path),
             value(true),
         );
         assert_eq!(
@@ -149,7 +151,7 @@ mod table_header_adder_tests {
         _ = add_value_with_table_header_and_dotted_path(
             &mut doc,
             &table_header_path,
-            &dotted_path,
+            Some(dotted_path),
             value(true),
         );
         assert_eq!(
@@ -178,7 +180,7 @@ bundles.go.enable = true
         _ = add_value_with_table_header_and_dotted_path(
             &mut doc,
             &table_header_path,
-            &dotted_path,
+            Some(dotted_path),
             value(true),
         );
         assert_eq!(
@@ -207,7 +209,7 @@ interpreter.ruby.enable = true
         _ = add_value_with_table_header_and_dotted_path(
             &mut doc,
             &table_header_path,
-            &dotted_path,
+            Some(dotted_path),
             value("3.2.3"),
         );
         assert_eq!(doc.to_string(), "\n[moduleConfig]\ninterpreter.ruby.enable = true\ninterpreters.ruby.version = \"3.2.3\"\n        ");
@@ -233,7 +235,7 @@ interpreters.ruby = "my dear"
         let res = &add_value_with_table_header_and_dotted_path(
             &mut doc,
             &table_header_path,
-            &dotted_path,
+            Some(dotted_path),
             value("3.2.3"),
         );
         assert!(res.is_err());

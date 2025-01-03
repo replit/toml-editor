@@ -9,9 +9,9 @@ use crate::field_finder::{get_field, DoInsert, TomlValue};
 use crate::AddOp;
 
 pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
-    let path = op.dotted_path.unwrap_or(op.path);  // TODO: dotted_path is just a duplicated
-                                                   // codepath of "path". Delete this once pid1 has
-                                                   // been updated.
+    let path = op.dotted_path.or(op.path); // TODO: dotted_path is just a duplicated
+                                           // codepath of "path". Delete this once pid1 has
+                                           // been updated.
     match op.table_header_path {
         Some(thpath) => {
             let value = op.value.context("error: expected value to add")?;
@@ -19,10 +19,8 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
                 .split('/')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>();
-            let dotted_path_vec = path
-                .split('/')
-                .map(|s| s.to_string())
-                .collect::<Vec<String>>();
+            let dotted_path_vec =
+                path.map(|p| p.split('/').map(|s| s.to_string()).collect::<Vec<String>>());
             let field_value_json: JValue =
                 from_str(&value).context("parsing value field in add request")?;
             let field_value_toml: Item = json_to_toml(&field_value_json, true)
@@ -31,12 +29,13 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
             table_header_adder::add_value_with_table_header_and_dotted_path(
                 doc,
                 &table_header_path_vec,
-                &dotted_path_vec,
+                dotted_path_vec,
                 field_value_toml,
             )
         }
         None => {
             let mut path_split = path
+                .expect("Missing 'path' value")
                 .split('/')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>();
@@ -182,7 +181,7 @@ mod adder_tests {
                 let value = Some($value.to_string());
 
                 let op = AddOp {
-                    path: field,
+                    path: Some(field),
                     table_header_path: None,
                     dotted_path: None,
                     value: value,

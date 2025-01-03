@@ -48,7 +48,7 @@ enum OpKind {
 
 #[derive(Serialize, Deserialize)]
 struct AddOp {
-    path: String,
+    path: Option<String>,
     table_header_path: Option<String>,
     dotted_path: Option<String>,
     value: Option<String>,
