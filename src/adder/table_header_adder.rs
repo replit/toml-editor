@@ -21,7 +21,12 @@ pub fn add_value_with_table_header_and_dotted_path(
 ) -> Result<()> {
     match table_header_path.get(0) {
         None => {
-            add_value_with_dotted_path(table, dotted_path.expect("expected path").as_slice(), value)
+            add_value_with_dotted_path(
+                table,
+                dotted_path.expect("Missing 'path' value").as_slice(),
+                value,
+            )?;
+            Ok(())
         }
         Some(field) => match table.get_mut(field) {
             Some(Item::Table(ref mut inner_table)) => {
@@ -31,7 +36,9 @@ pub fn add_value_with_table_header_and_dotted_path(
                     &table_header_path[1..],
                     dotted_path,
                     value,
-                )
+                    array_of_tables,
+                )?;
+                Ok(())
             }
             None | Some(Item::None) => {
                 let mut inner_table = Table::new();
@@ -41,9 +48,9 @@ pub fn add_value_with_table_header_and_dotted_path(
                     &table_header_path[1..],
                     dotted_path,
                     value,
-                )
-                .map(|_| table.insert(field, Item::Table(inner_table)))
-                .map(|_| ())
+                )?;
+                table.insert(field, Item::Table(inner_table));
+                Ok(())
             }
             Some(Item::Value(_)) => {
                 bail!("cannot set a key on a non-table")
