@@ -192,7 +192,6 @@ fn descend_array<'a>(
 #[cfg(test)]
 mod finger_tests {
     use super::*;
-    use toml_edit::DocumentMut;
 
     #[test]
     fn get_basic_field() {

@@ -31,24 +31,24 @@ struct Args {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(tag = "op")]
 enum OpKind {
     /// Creates the field if it doesn't already exist and sets it
     #[serde(rename = "add")]
-    Add,
+    Add(AddOp),
 
     /// Gets the value at the specified path, returned as JSON
     #[serde(rename = "get")]
-    Get,
+    Get { path: String },
 
     /// Removes the field if it exists
     #[serde(rename = "remove")]
-    Remove,
+    Remove { path: String },
 }
 
 #[derive(Serialize, Deserialize)]
-struct Op {
-    op: OpKind,
-    path: String,
+struct AddOp {
+    path: Option<String>,
     table_header_path: Option<String>,
     dotted_path: Option<String>,
     value: Option<String>,
@@ -102,7 +102,7 @@ fn do_edits(
     return_output: bool,
 ) -> Result<(String, Vec<Value>)> {
     // parse line as json
-    let json: Vec<Op> = from_str(msg)?;
+    let json: Vec<OpKind> = from_str(msg)?;
 
     // we need to re-read the file each time since the user might manually edit the
     // file and so we need to make sure we have the most up to date version.
@@ -119,28 +119,20 @@ fn do_edits(
     let mut changed: bool = false;
     let mut outputs: Vec<Value> = vec![];
     for op in json {
-        let path = op.path;
-        match op.op {
-            OpKind::Add => {
-                let value = op.value.context("error: expected value to add")?;
+        match op {
+            OpKind::Add(op) => {
                 changed = true;
-                handle_add(
-                    &path,
-                    op.table_header_path,
-                    op.dotted_path,
-                    &value,
-                    &mut doc
-                )?;
+                handle_add(&mut doc, op)?;
                 outputs.push(json!("ok"));
             }
-            OpKind::Get => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
+            OpKind::Get { path } => match traversal::traverse(TraverseOps::Get, &mut doc, &path) {
                 Ok(value) => outputs.push(value.unwrap_or_default()),
                 Err(error) => {
                     eprintln!("Error processing {}: {}", path, error);
                     outputs.push(Value::Null)
                 }
             },
-            OpKind::Remove => {
+            OpKind::Remove { path } => {
                 changed = true;
                 handle_remove(&path, &mut doc)?;
                 outputs.push(json!("ok"));

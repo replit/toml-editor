@@ -2,35 +2,62 @@ mod table_header_adder;
 
 use anyhow::{bail, Context, Result};
 use serde_json::{from_str, Value as JValue};
-use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value};
+use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Value};
 
 use crate::converter::json_to_toml;
 use crate::field_finder::{get_field, DoInsert, TomlValue};
+use crate::AddOp;
 
-pub fn handle_add(
-    field: &str,
-    table_header_path: Option<String>,
-    dotted_path: Option<String>,
-    value: &str,
-    doc: &mut DocumentMut,
-) -> Result<()> {
-    match table_header_path {
+pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
+    let path = op.dotted_path.or(op.path); // TODO: dotted_path is just a duplicated
+                                           // codepath of "path". Delete this once pid1 has
+                                           // been updated.
+    match op.table_header_path {
         Some(thpath) => {
-            let dpath = dotted_path.context("error: expected dotted_path to add")?;
-            handle_add_with_table_header_path(&thpath, &dpath, value, doc)
+            let value = op.value.context("error: expected value to add")?;
+            let mut table_header_path_vec = thpath
+                .split('/')
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+            let dotted_path_vec =
+                path.map(|p| p.split('/').map(|s| s.to_string()).collect::<Vec<String>>());
+            let field_value_json: JValue =
+                from_str(&value).context("parsing value field in add request")?;
+            let field_value_toml: Item = json_to_toml(&field_value_json, true)
+                .context("converting value in add request from json to toml")?;
+
+            let array_of_tables = if table_header_path_vec
+                .last()
+                .is_some_and(|key| key == "[[]]")
+            {
+                table_header_path_vec.pop();
+                true
+            } else {
+                false
+            };
+            table_header_adder::add_value_with_table_header_and_dotted_path(
+                doc,
+                &table_header_path_vec,
+                dotted_path_vec,
+                field_value_toml,
+                array_of_tables,
+            )
         }
         None => {
-            let mut path_split = field
+            let mut path_split = path
+                .context("Missing 'path' value")?
                 .split('/')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>();
 
             let last_field = path_split.pop().context("Path is empty")?;
 
-            let final_field_value =
-                get_field(&path_split, &last_field, DoInsert::Yes, doc).context("Could not find field")?;
+            let final_field_value = get_field(&path_split, &last_field, DoInsert::Yes, doc)
+                .context("Could not find field")?;
 
-            let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
+            let value = op.value.context("error: expected value to add")?;
+            let field_value_json: JValue =
+                from_str(&value).context("parsing value field in add request")?;
 
             let is_inline = matches!(
                 final_field_value,
@@ -41,21 +68,23 @@ pub fn handle_add(
                 .context("converting value in add request from json to toml")?;
 
             match final_field_value {
-                TomlValue::Table(table) => add_in_table(table, &last_field, field_value_toml),
+                TomlValue::Table(table) => {
+                    table.insert(&last_field, field_value_toml);
+                    Ok(())
+                }
                 TomlValue::ArrayOfTables(array) => {
                     add_in_array_of_tables(array, &last_field, field_value_toml)
                 }
                 TomlValue::Array(array) => add_in_array(array, &last_field, field_value_toml),
-                TomlValue::InlineTable(table) => add_in_inline_table(table, &last_field, field_value_toml),
-                TomlValue::Value(value) => add_in_generic_value(value, &last_field, field_value_toml),
+                TomlValue::InlineTable(table) => {
+                    add_in_inline_table(table, &last_field, field_value_toml)
+                }
+                TomlValue::Value(value) => {
+                    add_in_generic_value(value, &last_field, field_value_toml)
+                }
             }
         }
     }
-}
-
-fn add_in_table(table: &mut Table, last_field: &str, toml: Item) -> Result<()> {
-    table.insert(last_field, toml);
-    Ok(())
 }
 
 fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: &str, toml: Item) -> Result<()> {
@@ -124,33 +153,13 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item)
     }
 }
 
-fn handle_add_with_table_header_path(
-    table_header_path: &str,
-    dotted_path: &str,
-    value: &str,
-    doc: &mut DocumentMut,
-) -> Result<()> {
-    let table_header_path_vec = table_header_path
-        .split('/')
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>();
-    let dotted_path_vec = dotted_path
-        .split('/')
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>();
-    let field_value_json: JValue = from_str(value).context("parsing value field in add request")?;
-    let field_value_toml: Item = json_to_toml(&field_value_json, true)
-        .context("converting value in add request from json to toml")?;
-    return table_header_adder::add_value_with_table_header_and_dotted_path(doc, &table_header_path_vec, &dotted_path_vec, field_value_toml);
-}
-
 #[cfg(test)]
+#[macro_use]
 mod adder_tests {
     use super::*;
-    use toml_edit::{DocumentMut, TomlError};
 
-    fn get_dotreplit_content_with_formatting() -> Result<DocumentMut, TomlError> {
-        r#"test = "yo"
+    const GET_DOTREPLIT_CONTENT_WITH_FORMATTING: &str = r#"
+test = "yo"
 [foo]
   bar = "baz"  # comment
   inlineTable = {a = "b", c = "d" }
@@ -165,24 +174,79 @@ mod adder_tests {
     [[foo.arr]]
         glub = "group"
 [[foo.arr]]
-        none = "all""#
-            .to_string()
-            .parse::<DocumentMut>()
+        none = "all""#;
+
+    macro_rules! meta_add_test {
+        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr, $result:ident, $($assertion:stmt)*) => {
+            #[test]
+            fn $name() {
+                let mut doc = $contents.parse::<DocumentMut>().unwrap();
+                let expected = $expected;
+                let table_header_path = ($table_header_path as Option<&str>).map(|s| s.to_string());
+                let field = ($field as Option<&str>).map(|s| s.to_owned());
+                let value = Some($value.to_string());
+
+                let op = AddOp {
+                    path: field,
+                    table_header_path: table_header_path,
+                    dotted_path: None,
+                    value: value,
+                };
+                let $result = handle_add(&mut doc, op);
+                $(
+                    $assertion
+                )*
+                assert_eq!(doc.to_string().trim(), expected.trim());
+            }
+        };
     }
 
     macro_rules! add_test {
         ($name:ident, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
-            #[test]
-            fn $name() {
-                let mut doc = $contents;
-                let expected = $expected;
-                let field = $field;
-                let value = $value.to_string();
+            meta_add_test!(
+                $name,
+                None,
+                Some($field),
+                $value,
+                $contents,
+                $expected,
+                result,
+                { assert!(result.is_ok(), "error: {:?}", result) }
+            );
+        };
+    }
 
-                let result = handle_add(field, None, None, &value, &mut doc);
-                assert!(result.is_ok(), "error: {:?}", result);
-                assert_eq!(doc.to_string().trim(), expected.trim());
-            }
+    #[macro_export]
+    macro_rules! add_table_header_test {
+        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+            meta_add_test!(
+                $name,
+                $table_header_path,
+                $field,
+                $value,
+                $contents,
+                $expected,
+                result,
+                { assert!(result.is_ok(), "error: {:?}", result) }
+            );
+        };
+    }
+
+    #[macro_export]
+    macro_rules! add_table_header_error_test {
+        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+            meta_add_test!(
+                $name,
+                $table_header_path,
+                $field,
+                $value,
+                $contents,
+                $expected,
+                result,
+                {
+                    assert!(result.is_err(), "expected an error, got : {:?}", result);
+                }
+            );
         };
     }
 
@@ -190,7 +254,7 @@ mod adder_tests {
         add_to_toml_basic,
         "new",
         "\"yo\"",
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 new = "yo"
@@ -216,7 +280,7 @@ new = "yo"
         add_to_toml_deep,
         "foo/bla/new",
         "\"yo\"",
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 [foo]
@@ -242,7 +306,7 @@ new = "yo"
         add_array,
         "new",
         r#"["a", "b", "c"]"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 new = ["a", "b", "c"]
@@ -268,7 +332,7 @@ new = ["a", "b", "c"]
         add_array_at_index,
         "foo/arr/1/glub",
         r#"{"hi": 123}"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 [foo]
@@ -295,7 +359,7 @@ hi = 123
         replace_large,
         "foo",
         r#"[1, 2, 3]"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 foo = [1, 2, 3]
@@ -306,7 +370,7 @@ foo = [1, 2, 3]
         simple_push_into_array,
         "arr/2",
         "123",
-        r#"arr = [1, 2]"#.parse::<DocumentMut>().unwrap(),
+        r#"arr = [1, 2]"#,
         r#"arr = [1, 2, 123]"#
     );
 
@@ -314,7 +378,7 @@ foo = [1, 2, 3]
         push_into_table_array,
         "foo/arr/3",
         r#"{}"#,
-        get_dotreplit_content_with_formatting().unwrap(),
+        GET_DOTREPLIT_CONTENT_WITH_FORMATTING,
         r#"
 test = "yo"
 [foo]
@@ -341,7 +405,7 @@ test = "yo"
         add_as_you_traverse,
         "foo/arr",
         r#""yup""#,
-        r#"meep = "nope""#.parse::<DocumentMut>().unwrap(),
+        r#"meep = "nope""#,
         r#"meep = "nope"
 
 [foo]
@@ -352,7 +416,7 @@ arr = "yup""#
         add_array_objects_deep,
         "foo/0/hi",
         r#"123"#,
-        r#"top = "hi""#.parse::<DocumentMut>().unwrap(),
+        r#"top = "hi""#,
         r#"top = "hi"
 
 [[foo]]
@@ -364,7 +428,7 @@ hi = 123
         add_array_objects,
         "foo/0",
         r#"{"hi": 123}"#,
-        r#"top = "hi""#.parse::<DocumentMut>().unwrap(),
+        r#"top = "hi""#,
         r#"top = "hi"
 
 [[foo]]
@@ -378,9 +442,7 @@ hi = 123
         r#"{"hi": 1234}"#,
         r#"top = "hi"
 [[foo]]
-hi = 123"#
-            .parse::<DocumentMut>()
-            .unwrap(),
+hi = 123"#,
         r#"top = "hi"
 [[foo]]
 hi = 123
@@ -404,9 +466,7 @@ PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
 REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 run = "echo heyo"
 
@@ -432,9 +492,7 @@ PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
 REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 [env]
 VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
@@ -459,9 +517,7 @@ PYTHONPATH="${VIRTUAL_ENV}/lib/python3.8/site-packages"
 REPLIT_POETRY_PYPI_REPOSITORY="https://package-proxy.replit.com/pypi/"
 MPLBACKEND="TkAgg"
 POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 [env]
 VIRTUAL_ENV = "/home/runner/${REPL_SLUG}/venv"
@@ -480,9 +536,7 @@ POETRY_CACHE_DIR="${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#,
         r#"
 run = "hi"
-"#
-        .parse::<DocumentMut>()
-        .unwrap(),
+"#,
         r#"
 run = "hi"
 
@@ -494,5 +548,130 @@ REPLIT_POETRY_PYPI_REPOSITORY = "https://package-proxy.replit.com/pypi/"
 MPLBACKEND = "TkAgg"
 POETRY_CACHE_DIR = "${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#
+    );
+}
+
+#[cfg(test)]
+mod table_header_adder_tests {
+    use super::*;
+
+    add_table_header_test!(
+        test_one_element_table_header,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/enable"),
+        "true",
+        "",
+        r#"
+[moduleConfig]
+interpreters.ruby.enable = true
+        "#
+    );
+
+    add_table_header_test!(
+        test_two_element_table_header,
+        Some("moduleConfig/interpreters"),
+        Some("ruby/enable"),
+        "true",
+        "",
+        r#"
+[moduleConfig.interpreters]
+ruby.enable = true
+        "#
+    );
+
+    add_table_header_test!(
+        test_preserve_existing,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/enable"),
+        "true",
+        r#"
+[moduleConfig]
+bundles.go.enable = true
+        "#,
+        r#"
+[moduleConfig]
+bundles.go.enable = true
+interpreters.ruby.enable = true
+"#
+    );
+
+    add_table_header_test!(
+        test_preserve_existing_inner_tables,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/version"),
+        "\"3.2.3\"",
+        r#"
+[moduleConfig]
+interpreter.ruby.enable = true
+        "#,
+        r#"
+[moduleConfig]
+interpreter.ruby.enable = true
+interpreters.ruby.version = "3.2.3"
+        "#
+    );
+
+    add_table_header_error_test!(
+        test_error_when_adding_key_to_non_table,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/version"),
+        "\"3.2.3\"",
+        r#"
+[moduleConfig]
+interpreters.ruby = "my dear"
+        "#,
+        r#"
+[moduleConfig]
+interpreters.ruby = "my dear"
+        "#
+    );
+
+    add_table_header_test!(
+        test_add_arrays_of_tables,
+        Some("tool/uv/index/[[]]"),
+        None,
+        r#"
+        {"key": "value"}
+        "#,
+        "",
+        r#"
+[[tool.uv.index]]
+key = "value"
+"#
+    );
+
+    add_table_header_test!(
+        test_append_arrays_of_tables,
+        Some("tool/uv/index/[[]]"),
+        None,
+        r#"
+        {"key": "second"}
+        "#,
+        r#"
+[[tool.uv.index]]
+key = "first"
+        "#,
+        r#"
+[[tool.uv.index]]
+key = "first"
+
+[[tool.uv.index]]
+key = "second"
+"#
+    );
+
+    add_table_header_test!(
+        test_add_table_literal,
+        Some("tool/uv/sources"),
+        None,
+        r#"
+        {"torchvision": [{ "index": "pytorch-cpu", "marker": "platform_system == 'Linux'" }]}
+        "#,
+        r#"
+        "#,
+        r#"
+[tool.uv.sources]
+torchvision = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+        "#
     );
 }

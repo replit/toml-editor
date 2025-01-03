@@ -67,7 +67,7 @@ fn remove_in_inline_table(inline_table: &mut InlineTable, last_field: &str) -> R
 #[cfg(test)]
 mod remover_tests {
     use super::*;
-    use toml_edit::{DocumentMut, TomlError};
+    use toml_edit::TomlError;
 
     fn get_dotreplit_content() -> Result<DocumentMut, TomlError> {
         r#"test = "yo"
