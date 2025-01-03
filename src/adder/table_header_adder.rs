@@ -153,139 +153,140 @@ mod table_header_adder_tests {
     use super::*;
     use toml_edit::{value, DocumentMut};
 
-    #[test]
-    fn test_one_element_table_header() {
-        let mut doc = "".to_string().parse::<DocumentMut>().expect("invalid doc");
-        let table_header_path = vec!["moduleConfig"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        let dotted_path = vec!["interpreters", "ruby", "enable"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        _ = add_value_with_table_header_and_dotted_path(
-            &mut doc,
-            &table_header_path,
-            Some(dotted_path),
-            value(true),
-            false,
-        );
-        assert_eq!(
-            doc.to_string(),
-            "[moduleConfig]\ninterpreters.ruby.enable = true\n"
-        );
+    macro_rules! meta_add_test {
+        ($name:ident, $table_header:expr, $path:expr, $value:expr, $contents:expr, $expected:expr, $result:ident, $($assertion:stmt)*) => {
+            #[test]
+            fn $name() {
+                let mut doc = $contents.to_string().parse::<DocumentMut>().expect("invalid doc");
+
+                let table_header_path = $table_header
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>();
+                let dotted_path = $path
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>();
+                let $result = add_value_with_table_header_and_dotted_path(
+                    &mut doc,
+                    &table_header_path,
+                    Some(dotted_path),
+                    $value,
+                    false,
+                );
+                $(
+                    $assertion
+                )*
+                assert_eq!(
+                    doc.to_string().trim(),
+                    $expected.trim(),
+                );
+            }
+        };
     }
 
-    #[test]
-    fn test_two_element_table_header() {
-        let mut doc = "".to_string().parse::<DocumentMut>().expect("invalid doc");
-        let table_header_path = vec!["moduleConfig", "interpreters"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        let dotted_path = vec!["ruby", "enable"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        _ = add_value_with_table_header_and_dotted_path(
-            &mut doc,
-            &table_header_path,
-            Some(dotted_path),
-            value(true),
-            false,
-        );
-        assert_eq!(
-            doc.to_string(),
-            "[moduleConfig.interpreters]\nruby.enable = true\n"
-        );
+    macro_rules! add_test {
+        ($name:ident, $table_header:expr, $path:expr, $value:expr, $contents:expr, $expected:expr) => {
+            meta_add_test!(
+                $name,
+                $table_header,
+                $path,
+                $value,
+                $contents,
+                $expected,
+                result,
+                {
+                    assert!(result.is_ok(), "error: {:?}", result);
+                }
+            );
+        };
     }
 
-    #[test]
-    fn test_preserve_existing() {
-        let mut doc = r#"
+    macro_rules! add_error_test {
+        ($name:ident, $table_header:expr, $path:expr, $value:expr, $contents:expr, $expected:expr) => {
+            meta_add_test!(
+                $name,
+                $table_header,
+                $path,
+                $value,
+                $contents,
+                $expected,
+                result,
+                {
+                    assert!(result.is_err(), "expected an error, got : {:?}", result);
+                }
+            );
+        };
+    }
+
+    add_test!(
+        test_one_element_table_header,
+        vec!["moduleConfig"],
+        vec!["interpreters", "ruby", "enable"],
+        value(true),
+        "",
+        r#"
+[moduleConfig]
+interpreters.ruby.enable = true
+        "#
+    );
+
+    add_test!(
+        test_two_element_table_header,
+        vec!["moduleConfig", "interpreters"],
+        vec!["ruby", "enable"],
+        value(true),
+        "",
+        r#"
+[moduleConfig.interpreters]
+ruby.enable = true
+        "#
+    );
+
+    add_test!(
+        test_preserve_existing,
+        vec!["moduleConfig"],
+        vec!["interpreters", "ruby", "enable"],
+        value(true),
+        r#"
 [moduleConfig]
 bundles.go.enable = true
-        "#
-        .to_string()
-        .parse::<DocumentMut>()
-        .expect("invalid doc");
-        let table_header_path = vec!["moduleConfig"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        let dotted_path = vec!["interpreters", "ruby", "enable"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        _ = add_value_with_table_header_and_dotted_path(
-            &mut doc,
-            &table_header_path,
-            Some(dotted_path),
-            value(true),
-            false,
-        );
-        assert_eq!(
-            doc.to_string(),
-            "\n[moduleConfig]\nbundles.go.enable = true\ninterpreters.ruby.enable = true\n        "
-        );
-    }
+        "#,
+        r#"
+[moduleConfig]
+bundles.go.enable = true
+interpreters.ruby.enable = true
+"#
+    );
 
-    #[test]
-    fn test_preserve_existing_inner_tables() {
-        let mut doc = r#"
+    add_test!(
+        test_preserve_existing_inner_tables,
+        vec!["moduleConfig"],
+        vec!["interpreters", "ruby", "version"],
+        value("3.2.3"),
+        r#"
 [moduleConfig]
 interpreter.ruby.enable = true
+        "#,
+        r#"
+[moduleConfig]
+interpreter.ruby.enable = true
+interpreters.ruby.version = "3.2.3"
         "#
-        .to_string()
-        .parse::<DocumentMut>()
-        .expect("invalid doc");
-        let table_header_path = vec!["moduleConfig"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        let dotted_path = vec!["interpreters", "ruby", "version"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        _ = add_value_with_table_header_and_dotted_path(
-            &mut doc,
-            &table_header_path,
-            Some(dotted_path),
-            value("3.2.3"),
-            false,
-        );
-        assert_eq!(doc.to_string(), "\n[moduleConfig]\ninterpreter.ruby.enable = true\ninterpreters.ruby.version = \"3.2.3\"\n        ");
-    }
+    );
 
-    #[test]
-    fn test_error_when_adding_key_to_non_table() {
-        let mut doc = r#"
+    add_error_test!(
+        test_error_when_adding_key_to_non_table,
+        vec!["moduleConfig"],
+        vec!["interpreters", "ruby", "version"],
+        value("3.2.3"),
+        r#"
+[moduleConfig]
+interpreters.ruby = "my dear"
+        "#,
+        r#"
 [moduleConfig]
 interpreters.ruby = "my dear"
         "#
-        .to_string()
-        .parse::<DocumentMut>()
-        .expect("invalid doc");
-        let table_header_path = vec!["moduleConfig"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        let dotted_path = vec!["interpreters", "ruby", "version"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        let res = &add_value_with_table_header_and_dotted_path(
-            &mut doc,
-            &table_header_path,
-            Some(dotted_path),
-            value("3.2.3"),
-            false,
-        );
-        assert!(res.is_err());
-        assert_eq!(
-            doc.to_string(),
-            "\n[moduleConfig]\ninterpreters.ruby = \"my dear\"\n        "
-        );
-    }
+    );
 }
