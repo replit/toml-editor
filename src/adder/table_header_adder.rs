@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use toml_edit::{Item, Table};
+use toml_edit::{array, Item, Table, Value};
 
 /*
 Perform an "add" at a table_header_path followed by a dotted_path.
@@ -42,16 +42,34 @@ pub fn add_value_with_table_header_and_dotted_path(
                 Ok(())
             }
             None | Some(Item::None) => {
-                let mut inner_table = Table::new();
-                inner_table.set_dotted(table_header_path.len() > 1);
-                add_value_with_table_header_and_dotted_path(
-                    &mut inner_table,
-                    &table_header_path[1..],
-                    dotted_path,
-                    value,
-                    array_of_tables,
-                )?;
-                table.insert(field, Item::Table(inner_table));
+                match dotted_path {
+                    Some(path) => {
+                        let mut inner_table = Table::new();
+                        inner_table.set_dotted(table_header_path.len() > 1);
+                        add_value_with_table_header_and_dotted_path(
+                            &mut inner_table,
+                            &table_header_path[1..],
+                            Some(path),
+                            value,
+                            array_of_tables,
+                        )?;
+                        table.insert(field, Item::Table(inner_table));
+                    }
+                    None => match value {
+                        Item::Value(Value::InlineTable(it)) => {
+                            if array_of_tables {
+                                table.insert(field, array());
+                                let aot = table[field].as_array_of_tables_mut().unwrap();
+                                aot.push(it.into_table());
+                            } else {
+                                table.insert(field, Item::Table(it.into_table()));
+                            }
+                        }
+                        other => {
+                            bail!("unexpected value: {:?}", other);
+                        }
+                    },
+                }
                 Ok(())
             }
             Some(Item::Value(_)) => {
