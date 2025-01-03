@@ -45,7 +45,7 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
         }
         None => {
             let mut path_split = path
-                .expect("Missing 'path' value")
+                .context("Missing 'path' value")?
                 .split('/')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>();

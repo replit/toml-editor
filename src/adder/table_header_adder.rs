@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use toml_edit::{array, Item, Table, Value};
 
 /*
@@ -24,7 +24,7 @@ pub fn add_value_with_table_header_and_dotted_path(
         None => {
             add_value_with_dotted_path(
                 table,
-                dotted_path.expect("Missing 'path' value").as_slice(),
+                dotted_path.context("Missing 'path' value")?.as_slice(),
                 value,
             )?;
             Ok(())
