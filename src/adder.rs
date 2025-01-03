@@ -2,7 +2,7 @@ mod table_header_adder;
 
 use anyhow::{bail, Context, Result};
 use serde_json::{from_str, Value as JValue};
-use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, Value};
+use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Value};
 
 use crate::converter::json_to_toml;
 use crate::field_finder::{get_field, DoInsert, TomlValue};
@@ -68,7 +68,10 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
                 .context("converting value in add request from json to toml")?;
 
             match final_field_value {
-                TomlValue::Table(table) => add_in_table(table, &last_field, field_value_toml),
+                TomlValue::Table(table) => {
+                    table.insert(&last_field, field_value_toml);
+                    Ok(())
+                }
                 TomlValue::ArrayOfTables(array) => {
                     add_in_array_of_tables(array, &last_field, field_value_toml)
                 }
@@ -82,11 +85,6 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
             }
         }
     }
-}
-
-fn add_in_table(table: &mut Table, last_field: &str, toml: Item) -> Result<()> {
-    table.insert(last_field, toml);
-    Ok(())
 }
 
 fn add_in_array_of_tables(array: &mut ArrayOfTables, last_field: &str, toml: Item) -> Result<()> {
