@@ -163,14 +163,16 @@ mod table_header_adder_tests {
                     .iter()
                     .map(|s| s.to_string())
                     .collect::<Vec<String>>();
-                let dotted_path = $path
+                // We need to be explicit to guide None towards a compatible type:
+                let dotted_path = ($path as Option<Vec<&str>>).map(|path|
+                    path
                     .iter()
                     .map(|s| s.to_string())
-                    .collect::<Vec<String>>();
+                    .collect::<Vec<String>>());
                 let $result = add_value_with_table_header_and_dotted_path(
                     &mut doc,
                     &table_header_path,
-                    Some(dotted_path),
+                    dotted_path,
                     $value,
                     false,
                 );
@@ -222,7 +224,7 @@ mod table_header_adder_tests {
     add_test!(
         test_one_element_table_header,
         vec!["moduleConfig"],
-        vec!["interpreters", "ruby", "enable"],
+        Some(vec!["interpreters", "ruby", "enable"]),
         value(true),
         "",
         r#"
@@ -234,7 +236,7 @@ interpreters.ruby.enable = true
     add_test!(
         test_two_element_table_header,
         vec!["moduleConfig", "interpreters"],
-        vec!["ruby", "enable"],
+        Some(vec!["ruby", "enable"]),
         value(true),
         "",
         r#"
@@ -246,7 +248,7 @@ ruby.enable = true
     add_test!(
         test_preserve_existing,
         vec!["moduleConfig"],
-        vec!["interpreters", "ruby", "enable"],
+        Some(vec!["interpreters", "ruby", "enable"]),
         value(true),
         r#"
 [moduleConfig]
@@ -262,7 +264,7 @@ interpreters.ruby.enable = true
     add_test!(
         test_preserve_existing_inner_tables,
         vec!["moduleConfig"],
-        vec!["interpreters", "ruby", "version"],
+        Some(vec!["interpreters", "ruby", "version"]),
         value("3.2.3"),
         r#"
 [moduleConfig]
@@ -278,7 +280,7 @@ interpreters.ruby.version = "3.2.3"
     add_error_test!(
         test_error_when_adding_key_to_non_table,
         vec!["moduleConfig"],
-        vec!["interpreters", "ruby", "version"],
+        Some(vec!["interpreters", "ruby", "version"]),
         value("3.2.3"),
         r#"
 [moduleConfig]
