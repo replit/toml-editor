@@ -175,18 +175,18 @@ test = "yo"
 [[foo.arr]]
         none = "all""#;
 
-    macro_rules! add_test {
-        ($name:ident, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+    macro_rules! meta_add_test {
+        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
             #[test]
             fn $name() {
                 let mut doc = $contents.parse::<DocumentMut>().unwrap();
                 let expected = $expected;
-                let field = $field.to_owned();
+                let field = $field;
                 let value = Some($value.to_string());
 
                 let op = AddOp {
-                    path: Some(field),
-                    table_header_path: None,
+                    path: field,
+                    table_header_path: $table_header_path,
                     dotted_path: None,
                     value: value,
                 };
@@ -194,6 +194,19 @@ test = "yo"
                 assert!(result.is_ok(), "error: {:?}", result);
                 assert_eq!(doc.to_string().trim(), expected.trim());
             }
+        };
+    }
+
+    macro_rules! add_test {
+        ($name:ident, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+            meta_add_test!(
+                $name,
+                None,
+                Some($field.to_owned()),
+                $value,
+                $contents,
+                $expected
+            );
         };
     }
 
