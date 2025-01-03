@@ -151,7 +151,7 @@ fn add_value_with_dotted_path(
 #[cfg(test)]
 mod table_header_adder_tests {
     use super::*;
-    use toml_edit::{value, DocumentMut};
+    use toml_edit::{value, DocumentMut, Formatted, InlineTable};
 
     macro_rules! meta_add_test {
         ($name:ident, $table_header:expr, $path:expr, $value:expr, $contents:expr, $expected:expr, $result:ident, $($assertion:stmt)*) => {
@@ -159,7 +159,7 @@ mod table_header_adder_tests {
             fn $name() {
                 let mut doc = $contents.to_string().parse::<DocumentMut>().expect("invalid doc");
 
-                let table_header_path = $table_header
+                let mut table_header_path = $table_header
                     .iter()
                     .map(|s| s.to_string())
                     .collect::<Vec<String>>();
@@ -169,12 +169,19 @@ mod table_header_adder_tests {
                     .iter()
                     .map(|s| s.to_string())
                     .collect::<Vec<String>>());
+
+                let array_of_tables = if table_header_path.last().is_some_and(|k| k == "[[]]") {
+                    table_header_path.pop();
+                    true
+                } else {
+                    false
+                };
                 let $result = add_value_with_table_header_and_dotted_path(
                     &mut doc,
                     &table_header_path,
                     dotted_path,
                     $value,
-                    false,
+                    array_of_tables,
                 );
                 $(
                     $assertion
