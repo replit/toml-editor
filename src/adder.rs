@@ -154,6 +154,7 @@ fn add_in_generic_value(generic_value: &mut Value, last_field: &str, toml: Item)
 }
 
 #[cfg(test)]
+#[macro_use]
 mod adder_tests {
     use super::*;
 
@@ -176,22 +177,25 @@ test = "yo"
         none = "all""#;
 
     macro_rules! meta_add_test {
-        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr, $result:ident, $($assertion:stmt)*) => {
             #[test]
             fn $name() {
                 let mut doc = $contents.parse::<DocumentMut>().unwrap();
                 let expected = $expected;
-                let field = $field;
+                let table_header_path = ($table_header_path as Option<&str>).map(|s| s.to_string());
+                let field = ($field as Option<&str>).map(|s| s.to_owned());
                 let value = Some($value.to_string());
 
                 let op = AddOp {
                     path: field,
-                    table_header_path: $table_header_path,
+                    table_header_path: table_header_path,
                     dotted_path: None,
                     value: value,
                 };
-                let result = handle_add(&mut doc, op);
-                assert!(result.is_ok(), "error: {:?}", result);
+                let $result = handle_add(&mut doc, op);
+                $(
+                    $assertion
+                )*
                 assert_eq!(doc.to_string().trim(), expected.trim());
             }
         };
@@ -202,10 +206,46 @@ test = "yo"
             meta_add_test!(
                 $name,
                 None,
-                Some($field.to_owned()),
+                Some($field),
                 $value,
                 $contents,
-                $expected
+                $expected,
+                result,
+                { assert!(result.is_ok(), "error: {:?}", result) }
+            );
+        };
+    }
+
+    #[macro_export]
+    macro_rules! add_table_header_test {
+        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+            meta_add_test!(
+                $name,
+                $table_header_path,
+                $field,
+                $value,
+                $contents,
+                $expected,
+                result,
+                { assert!(result.is_ok(), "error: {:?}", result) }
+            );
+        };
+    }
+
+    #[macro_export]
+    macro_rules! add_table_header_error_test {
+        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr) => {
+            meta_add_test!(
+                $name,
+                $table_header_path,
+                $field,
+                $value,
+                $contents,
+                $expected,
+                result,
+                {
+                    assert!(result.is_err(), "expected an error, got : {:?}", result);
+                }
             );
         };
     }
@@ -508,5 +548,130 @@ REPLIT_POETRY_PYPI_REPOSITORY = "https://package-proxy.replit.com/pypi/"
 MPLBACKEND = "TkAgg"
 POETRY_CACHE_DIR = "${HOME}/${REPL_SLUG}/.cache/pypoetry"
 "#
+    );
+}
+
+#[cfg(test)]
+mod table_header_adder_tests {
+    use super::*;
+
+    add_table_header_test!(
+        test_one_element_table_header,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/enable"),
+        "true",
+        "",
+        r#"
+[moduleConfig]
+interpreters.ruby.enable = true
+        "#
+    );
+
+    add_table_header_test!(
+        test_two_element_table_header,
+        Some("moduleConfig/interpreters"),
+        Some("ruby/enable"),
+        "true",
+        "",
+        r#"
+[moduleConfig.interpreters]
+ruby.enable = true
+        "#
+    );
+
+    add_table_header_test!(
+        test_preserve_existing,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/enable"),
+        "true",
+        r#"
+[moduleConfig]
+bundles.go.enable = true
+        "#,
+        r#"
+[moduleConfig]
+bundles.go.enable = true
+interpreters.ruby.enable = true
+"#
+    );
+
+    add_table_header_test!(
+        test_preserve_existing_inner_tables,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/version"),
+        "\"3.2.3\"",
+        r#"
+[moduleConfig]
+interpreter.ruby.enable = true
+        "#,
+        r#"
+[moduleConfig]
+interpreter.ruby.enable = true
+interpreters.ruby.version = "3.2.3"
+        "#
+    );
+
+    add_table_header_error_test!(
+        test_error_when_adding_key_to_non_table,
+        Some("moduleConfig"),
+        Some("interpreters/ruby/version"),
+        "\"3.2.3\"",
+        r#"
+[moduleConfig]
+interpreters.ruby = "my dear"
+        "#,
+        r#"
+[moduleConfig]
+interpreters.ruby = "my dear"
+        "#
+    );
+
+    add_table_header_test!(
+        test_add_arrays_of_tables,
+        Some("tool/uv/index/[[]]"),
+        None,
+        r#"
+        {"key": "value"}
+        "#,
+        "",
+        r#"
+[[tool.uv.index]]
+key = "value"
+"#
+    );
+
+    add_table_header_test!(
+        test_append_arrays_of_tables,
+        Some("tool/uv/index/[[]]"),
+        None,
+        r#"
+        {"key": "second"}
+        "#,
+        r#"
+[[tool.uv.index]]
+key = "first"
+        "#,
+        r#"
+[[tool.uv.index]]
+key = "first"
+
+[[tool.uv.index]]
+key = "second"
+"#
+    );
+
+    add_table_header_test!(
+        test_add_table_literal,
+        Some("tool/uv/sources"),
+        None,
+        r#"
+        {"torchvision": [{ "index": "pytorch-cpu", "marker": "platform_system == 'Linux'" }]}
+        "#,
+        r#"
+        "#,
+        r#"
+[tool.uv.sources]
+torchvision = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+        "#
     );
 }
