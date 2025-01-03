@@ -42,20 +42,19 @@ pub fn add_value_with_table_header_and_dotted_path(
                 Ok(())
             }
             None | Some(Item::None) => {
-                match dotted_path {
-                    Some(path) => {
-                        let mut inner_table = Table::new();
-                        inner_table.set_dotted(table_header_path.len() > 1);
-                        add_value_with_table_header_and_dotted_path(
-                            &mut inner_table,
-                            &table_header_path[1..],
-                            Some(path),
-                            value,
-                            array_of_tables,
-                        )?;
-                        table.insert(field, Item::Table(inner_table));
-                    }
-                    None => match value {
+                if table_header_path.len() > 1 || dotted_path.is_some() {
+                    let mut inner_table = Table::new();
+                    inner_table.set_dotted(table_header_path.len() > 1);
+                    add_value_with_table_header_and_dotted_path(
+                        &mut inner_table,
+                        &table_header_path[1..],
+                        dotted_path,
+                        value,
+                        array_of_tables,
+                    )?;
+                    table.insert(field, Item::Table(inner_table));
+                } else {
+                    match value {
                         Item::Value(Value::InlineTable(it)) => {
                             if array_of_tables {
                                 table.insert(field, array());
@@ -68,7 +67,7 @@ pub fn add_value_with_table_header_and_dotted_path(
                         other => {
                             bail!("unexpected value: {:?}", other);
                         }
-                    },
+                    }
                 }
                 Ok(())
             }
