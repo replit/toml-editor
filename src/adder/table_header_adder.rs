@@ -308,6 +308,31 @@ interpreters.ruby = "my dear"
             Item::Value(Value::InlineTable(it))
         },
         "",
-        ""
+        r#"
+[[tool.uv.index]]
+key = "value"
+"#
+    );
+
+    add_test!(
+        test_append_arrays_of_tables,
+        vec!["tool", "uv", "index", "[[]]"],
+        None,
+        {
+            let mut it = InlineTable::default();
+            it.insert("key", Value::String(Formatted::new("second".to_owned())));
+            Item::Value(Value::InlineTable(it))
+        },
+        r#"
+[[tool.uv.index]]
+key = "first"
+        "#,
+        r#"
+[[tool.uv.index]]
+key = "first"
+
+[[tool.uv.index]]
+key = "second"
+"#
     );
 }
