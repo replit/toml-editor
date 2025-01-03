@@ -150,7 +150,7 @@ fn add_value_with_dotted_path(
 #[cfg(test)]
 mod table_header_adder_tests {
     use super::*;
-    use toml_edit::{value, DocumentMut, Formatted, InlineTable};
+    use toml_edit::{value, Array, DocumentMut, Formatted, InlineTable};
 
     macro_rules! meta_add_test {
         ($name:ident, $table_header:expr, $path:expr, $value:expr, $contents:expr, $expected:expr, $result:ident, $($assertion:stmt)*) => {
@@ -334,5 +334,33 @@ key = "first"
 [[tool.uv.index]]
 key = "second"
 "#
+    );
+
+    add_test!(
+        test_add_table_literal,
+        vec!["tool", "uv", "sources"],
+        None,
+        {
+            let mut pytorch_cpu = InlineTable::default();
+            pytorch_cpu.insert(
+                "index",
+                Value::String(Formatted::new("pytorch-cpu".to_owned())),
+            );
+            pytorch_cpu.insert(
+                "marker",
+                Value::String(Formatted::new("platform_system == 'Linux'".to_owned())),
+            );
+            let mut tv = Array::new();
+            tv.push(pytorch_cpu);
+            let mut it = InlineTable::default();
+            it.insert("torchvision", Value::Array(tv));
+            Item::Value(Value::InlineTable(it))
+        },
+        r#"
+        "#,
+        r#"
+[tool.uv.sources]
+torchvision = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+        "#
     );
 }
