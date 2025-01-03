@@ -75,8 +75,20 @@ pub fn add_value_with_table_header_and_dotted_path(
             Some(Item::Value(_)) => {
                 bail!("cannot set a key on a non-table")
             }
-            Some(Item::ArrayOfTables(_)) => {
-                bail!("cannot set a key on an array of tables")
+            Some(Item::ArrayOfTables(aot)) => {
+                match value {
+                    Item::Value(Value::InlineTable(it)) => {
+                        if array_of_tables {
+                            aot.push(it.into_table());
+                        } else {
+                            bail!("Expected [[]] syntax for appending to an array of tables");
+                        }
+                    }
+                    other => {
+                        bail!("unexpected value: {:?}", other);
+                    }
+                };
+                Ok(())
             }
         },
     }
