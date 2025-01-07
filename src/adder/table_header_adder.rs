@@ -115,9 +115,9 @@ fn add_value_with_dotted_path(
                 if dotted_path.len() > 1 {
                     let mut inner_table = Table::new();
                     inner_table.set_dotted(true);
-                    add_value_with_dotted_path(&mut inner_table, &dotted_path[1..], value)
-                        .map(|_| table.insert(field, Item::Table(inner_table)))
-                        .map(|_| ())
+                    add_value_with_dotted_path(&mut inner_table, &dotted_path[1..], value)?;
+                    table.insert(field, Item::Table(inner_table));
+                    Ok(())
                 } else {
                     table.insert(field, value);
                     Ok(())
