@@ -20,7 +20,7 @@ pub fn add_value_with_table_header_and_dotted_path(
     value: Item,
     array_of_tables: bool,
 ) -> Result<()> {
-    match table_header_path.get(0) {
+    match table_header_path.first() {
         None => {
             add_value_with_dotted_path(
                 table,
@@ -108,16 +108,16 @@ fn add_value_with_dotted_path(
     dotted_path: &[String],
     value: Item,
 ) -> Result<()> {
-    match dotted_path.get(0) {
+    match dotted_path.first() {
         None => Ok(()),
         Some(field) => match table.get_mut(field) {
             None | Some(Item::None) => {
                 if dotted_path.len() > 1 {
                     let mut inner_table = Table::new();
                     inner_table.set_dotted(true);
-                    return add_value_with_dotted_path(&mut inner_table, &dotted_path[1..], value)
+                    add_value_with_dotted_path(&mut inner_table, &dotted_path[1..], value)
                         .map(|_| table.insert(field, Item::Table(inner_table)))
-                        .map(|_| ());
+                        .map(|_| ())
                 } else {
                     table.insert(field, value);
                     Ok(())
@@ -126,7 +126,7 @@ fn add_value_with_dotted_path(
             Some(Item::Table(ref mut inner_table)) => {
                 if dotted_path.len() > 1 {
                     inner_table.set_dotted(true);
-                    return add_value_with_dotted_path(inner_table, &dotted_path[1..], value);
+                    add_value_with_dotted_path(inner_table, &dotted_path[1..], value)
                 } else {
                     table.insert(field, value);
                     Ok(())

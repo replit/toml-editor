@@ -188,9 +188,9 @@ test = "yo"
 
                 let op = AddOp {
                     path: field,
-                    table_header_path: table_header_path,
+                    table_header_path,
                     dotted_path: None,
-                    value: value,
+                    value,
                 };
                 let $result = handle_add(&mut doc, op);
                 $(

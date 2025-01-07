@@ -53,7 +53,7 @@ pub fn traverse<'a>(
     }
 
     match op {
-        TraverseOps::Get => result?.to_value().map(|v| Some(v)),
+        TraverseOps::Get => result?.to_value().map(Some),
     }
 }
 

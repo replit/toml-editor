@@ -34,7 +34,7 @@ fn descend_table<'a>(
     do_insert: DoInsert,
     last_field: &String,
 ) -> Result<TomlValue<'a>> {
-    let segment = match path.get(0) {
+    let segment = match path.first() {
         Some(segment) => segment,
         None => return Ok(TomlValue::Table(table)),
     };
@@ -103,7 +103,7 @@ fn descend_array_of_tables<'a>(
     do_insert: DoInsert,
     last_field: &String,
 ) -> Result<TomlValue<'a>> {
-    let segment = match path.get(0) {
+    let segment = match path.first() {
         Some(segment) => segment,
         None => return Ok(TomlValue::ArrayOfTables(array)),
     };
@@ -143,7 +143,7 @@ fn descend_inline_table<'a>(
     do_insert: DoInsert,
     last_field: &String,
 ) -> Result<TomlValue<'a>> {
-    let segment = match path.get(0) {
+    let segment = match path.first() {
         Some(segment) => segment,
         None => return Ok(TomlValue::InlineTable(inline_table)),
     };
@@ -165,7 +165,7 @@ fn descend_array<'a>(
     do_insert: DoInsert,
     last_field: &String,
 ) -> Result<TomlValue<'a>> {
-    let segment = match path.get(0) {
+    let segment = match path.first() {
         Some(segment) => segment,
         None => return Ok(TomlValue::Array(array)),
     };
@@ -205,7 +205,7 @@ bla = "bla"
 
         let mut doc = doc_string.parse::<DocumentMut>().unwrap();
         let val = get_field(
-            &(vec!["foo".to_string()]),
+            &["foo".to_string()],
             &"bar".to_string(),
             DoInsert::Yes,
             &mut doc,
