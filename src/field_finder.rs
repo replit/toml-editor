@@ -19,7 +19,7 @@ pub enum DoInsert {
 
 pub fn get_field<'a>(
     path: &[String],
-    last_field: &String,
+    last_field: &str,
     do_insert: DoInsert,
     doc: &'a mut DocumentMut,
 ) -> Result<TomlValue<'a>> {
@@ -32,7 +32,7 @@ fn descend_table<'a>(
     table: &'a mut Table,
     path: &[String],
     do_insert: DoInsert,
-    last_field: &String,
+    last_field: &str,
 ) -> Result<TomlValue<'a>> {
     let segment = match path.first() {
         Some(segment) => segment,
@@ -67,7 +67,7 @@ fn descend_item<'a>(
     item: &'a mut Item,
     path: &[String],
     do_insert: DoInsert,
-    last_field: &String,
+    last_field: &str,
 ) -> Result<TomlValue<'a>> {
     match item {
         Item::Table(table) => descend_table(table, path, do_insert, last_field),
@@ -81,7 +81,7 @@ fn descend_value<'a>(
     value: &'a mut Value,
     path: &[String],
     do_insert: DoInsert,
-    last_field: &String,
+    last_field: &str,
 ) -> Result<TomlValue<'a>> {
     match value {
         Value::Array(array) => descend_array(array, path, do_insert, last_field),
@@ -101,7 +101,7 @@ fn descend_array_of_tables<'a>(
     array: &'a mut ArrayOfTables,
     path: &[String],
     do_insert: DoInsert,
-    last_field: &String,
+    last_field: &str,
 ) -> Result<TomlValue<'a>> {
     let segment = match path.first() {
         Some(segment) => segment,
@@ -141,7 +141,7 @@ fn descend_inline_table<'a>(
     inline_table: &'a mut InlineTable,
     path: &[String],
     do_insert: DoInsert,
-    last_field: &String,
+    last_field: &str,
 ) -> Result<TomlValue<'a>> {
     let segment = match path.first() {
         Some(segment) => segment,
@@ -163,7 +163,7 @@ fn descend_array<'a>(
     array: &'a mut Array,
     path: &[String],
     do_insert: DoInsert,
-    last_field: &String,
+    last_field: &str,
 ) -> Result<TomlValue<'a>> {
     let segment = match path.first() {
         Some(segment) => segment,
@@ -206,7 +206,7 @@ bla = "bla"
         let mut doc = doc_string.parse::<DocumentMut>().unwrap();
         let val = get_field(
             &["foo".to_string()],
-            &"bar".to_string(),
+            "bar",
             DoInsert::Yes,
             &mut doc,
         )
@@ -224,7 +224,7 @@ bla = "bla"
         let doc_string = r#"test = [ 1 ]"#;
         let mut doc = doc_string.parse::<DocumentMut>().unwrap();
         let fields = ["test".to_string()];
-        let val = get_field(&(fields), &"1".to_string(), DoInsert::Yes, &mut doc).unwrap();
+        let val = get_field(&(fields), "1", DoInsert::Yes, &mut doc).unwrap();
 
         if let TomlValue::Array(array) = val {
             assert_eq!(array.len(), 1);
@@ -243,7 +243,7 @@ foo = "baz"
 "#;
         let mut doc = doc_string.parse::<DocumentMut>().unwrap();
         let fields = ["test".to_string()];
-        let val = get_field(&(fields), &"2".to_string(), DoInsert::Yes, &mut doc).unwrap();
+        let val = get_field(&(fields), "2", DoInsert::Yes, &mut doc).unwrap();
 
         if let TomlValue::ArrayOfTables(array) = val {
             assert_eq!(array.len(), 2);
