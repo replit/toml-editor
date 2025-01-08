@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use toml_edit::{array, Item, Table, Value};
 
 /*
@@ -19,13 +19,15 @@ pub fn add_value_with_table_header_and_dotted_path(
     dotted_path: Option<Vec<String>>,
     value: Item,
     array_of_tables: bool,
+    append_array_at_path: bool,
 ) -> Result<()> {
-    match table_header_path.get(0) {
+    match table_header_path.first() {
         None => {
             add_value_with_dotted_path(
                 table,
                 dotted_path.context("Missing 'path' value")?.as_slice(),
                 value,
+                append_array_at_path,
             )?;
             Ok(())
         }
@@ -38,6 +40,7 @@ pub fn add_value_with_table_header_and_dotted_path(
                     dotted_path,
                     value,
                     array_of_tables,
+                    append_array_at_path,
                 )?;
                 Ok(())
             }
@@ -51,6 +54,7 @@ pub fn add_value_with_table_header_and_dotted_path(
                         dotted_path,
                         value,
                         array_of_tables,
+                        append_array_at_path,
                     )?;
                     table.insert(field, Item::Table(inner_table));
                 } else {
@@ -107,17 +111,32 @@ fn add_value_with_dotted_path(
     table: &mut Table,
     dotted_path: &[String],
     value: Item,
+    append_array_at_path: bool,
 ) -> Result<()> {
-    match dotted_path.get(0) {
+    match dotted_path.first() {
         None => Ok(()),
         Some(field) => match table.get_mut(field) {
             None | Some(Item::None) => {
                 if dotted_path.len() > 1 {
                     let mut inner_table = Table::new();
                     inner_table.set_dotted(true);
-                    return add_value_with_dotted_path(&mut inner_table, &dotted_path[1..], value)
-                        .map(|_| table.insert(field, Item::Table(inner_table)))
-                        .map(|_| ());
+                    add_value_with_dotted_path(
+                        &mut inner_table,
+                        &dotted_path[1..],
+                        value,
+                        append_array_at_path,
+                    )?;
+                    table.insert(field, Item::Table(inner_table));
+                    Ok(())
+                } else if append_array_at_path {
+                    let mut arr = toml_edit::Array::new();
+                    arr.push(
+                        value
+                            .into_value()
+                            .map_err(|_| anyhow!("Cannot append non-value item to array"))?,
+                    );
+                    table.insert(field, Item::Value(Value::Array(arr)));
+                    Ok(())
                 } else {
                     table.insert(field, value);
                     Ok(())
@@ -126,19 +145,35 @@ fn add_value_with_dotted_path(
             Some(Item::Table(ref mut inner_table)) => {
                 if dotted_path.len() > 1 {
                     inner_table.set_dotted(true);
-                    return add_value_with_dotted_path(inner_table, &dotted_path[1..], value);
+                    add_value_with_dotted_path(
+                        inner_table,
+                        &dotted_path[1..],
+                        value,
+                        append_array_at_path,
+                    )
                 } else {
                     table.insert(field, value);
                     Ok(())
                 }
             }
-            Some(Item::Value(_)) => {
-                if dotted_path.len() == 1 {
-                    table.insert(field, value);
-                    Ok(())
-                } else {
+            Some(item @ Item::Value(_)) => {
+                if dotted_path.len() != 1 {
                     bail!("Cannot overwrite a non-table with a table")
                 }
+
+                if append_array_at_path {
+                    let arr = item
+                        .as_array_mut()
+                        .context(format!("Cannot append non-array field '{field}'"))?;
+                    arr.push(
+                        value
+                            .into_value()
+                            .map_err(|_| anyhow!("Cannot append non-value item to array"))?,
+                    );
+                } else {
+                    table.insert(field, value);
+                }
+                Ok(())
             }
             Some(Item::ArrayOfTables(_)) => {
                 bail!("Cannot add key to a array of tables")

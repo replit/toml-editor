@@ -19,7 +19,7 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
                 .split('/')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>();
-            let dotted_path_vec =
+            let mut dotted_path_vec =
                 path.map(|p| p.split('/').map(|s| s.to_string()).collect::<Vec<String>>());
             let field_value_json: JValue =
                 from_str(&value).context("parsing value field in add request")?;
@@ -35,12 +35,20 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
             } else {
                 false
             };
+            let append_array_at_path = match &mut dotted_path_vec {
+                Some(path_vec) if path_vec.last().is_some_and(|key| key == "[]") => {
+                    path_vec.pop();
+                    true
+                }
+                _ => false,
+            };
             table_header_adder::add_value_with_table_header_and_dotted_path(
                 doc,
                 &table_header_path_vec,
                 dotted_path_vec,
                 field_value_toml,
                 array_of_tables,
+                append_array_at_path,
             )
         }
         None => {
@@ -177,7 +185,16 @@ test = "yo"
         none = "all""#;
 
     macro_rules! meta_add_test {
-        ($name:ident, $table_header_path:expr, $field:expr, $value:expr, $contents:expr, $expected:expr, $result:ident, $($assertion:stmt)*) => {
+        (
+            $name:ident,
+            $table_header_path:expr,
+            $field:expr,
+            $value:expr,
+            $contents:expr,
+            $expected:expr,
+            $result:ident,
+            $($assertion:stmt)*
+        ) => {
             #[test]
             fn $name() {
                 let mut doc = $contents.parse::<DocumentMut>().unwrap();
@@ -188,9 +205,9 @@ test = "yo"
 
                 let op = AddOp {
                     path: field,
-                    table_header_path: table_header_path,
+                    table_header_path,
                     dotted_path: None,
-                    value: value,
+                    value,
                 };
                 let $result = handle_add(&mut doc, op);
                 $(
@@ -672,6 +689,70 @@ key = "second"
         r#"
 [tool.uv.sources]
 torchvision = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+        "#
+    );
+
+    add_table_header_test!(
+        test_append_array_at_path_empty,
+        Some("tool/uv/sources"),
+        Some("torch/[]"),
+        r#"
+        {"index": "pytorch-cpu", "marker": "platform_system == 'Linux'"}
+        "#,
+        r#"
+        "#,
+        r#"
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+        "#
+    );
+
+    add_table_header_test!(
+        test_append_array_at_path_empty_dotted_path,
+        Some("tool/uv/sources"),
+        Some("torch/test/[]"),
+        r#"
+        {"index": "pytorch-cpu", "marker": "platform_system == 'Linux'"}
+        "#,
+        r#"
+        "#,
+        r#"
+[tool.uv.sources]
+torch.test = [{ index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+        "#
+    );
+
+    add_table_header_test!(
+        test_append_array_at_path_existing,
+        Some("tool/uv/sources"),
+        Some("torch/[]"),
+        r#"
+        {"index": "pytorch-cpu", "marker": "platform_system == 'Linux'"}
+        "#,
+        r#"
+[tool.uv.sources]
+torch = [{ index = "foo", marker = "platform_system == 'Windows'" }]
+        "#,
+        r#"
+[tool.uv.sources]
+torch = [{ index = "foo", marker = "platform_system == 'Windows'" }, { index = "pytorch-cpu", marker = "platform_system == 'Linux'" }]
+        "#
+    );
+
+    add_table_header_error_test!(
+        test_append_array_at_path_existing_non_array_at_path,
+        Some("tool/uv/sources"),
+        Some("torch/[]"),
+        r#"
+        {"index": "pytorch-cpu", "marker": "platform_system == 'Linux'"}
+        "#,
+        r#"
+[tool.uv.sources]
+torch = 1
+        "#,
+        r#"
+[tool.uv.sources]
+torch = 1
         "#
     );
 }
