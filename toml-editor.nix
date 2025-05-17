@@ -10,5 +10,9 @@ rustPlatform.buildRustPackage {
     lockFile = ./Cargo.lock;
   };
 
-  src = ./.;
+  src = builtins.path {
+    path = ./.;
+    name = "source";
+  };
+
 }
