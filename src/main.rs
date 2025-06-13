@@ -116,12 +116,10 @@ fn do_edits(
         .parse::<DocumentMut>()
         .with_context(|| format!("error: parsing file - {:?}", &dotreplit_filepath))?;
 
-    let mut changed: bool = false;
     let mut outputs: Vec<Value> = vec![];
     for op in json {
         match op {
             OpKind::Add(op) => {
-                changed = true;
                 handle_add(&mut doc, op)?;
                 outputs.push(json!("ok"));
             }
@@ -133,7 +131,6 @@ fn do_edits(
                 }
             },
             OpKind::Remove { path } => {
-                changed = true;
                 handle_remove(&path, &mut doc)?;
                 outputs.push(json!("ok"));
             }
@@ -145,8 +142,9 @@ fn do_edits(
     }
 
     // write the file back to disk
-    if changed {
-        fs::write(dotreplit_filepath, doc.to_string())
+    let new_contents = doc.to_string();
+    if dotreplit_contents != new_contents {
+        fs::write(dotreplit_filepath, new_contents)
             .with_context(|| format!("error: writing file: {:?}", &dotreplit_filepath))?;
     }
     Ok(("".to_string(), outputs))
