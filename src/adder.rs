@@ -61,7 +61,13 @@ pub fn handle_add(doc: &mut DocumentMut, op: AddOp) -> Result<()> {
             let last_field = path_split.pop().context("Path is empty")?;
 
             let final_field_value = get_field(&path_split, &last_field, DoInsert::Yes, doc)
-                .context("Could not find field")?;
+                .with_context(|| {
+                    format!(
+                        "Could not find field '{}' at path '{}'",
+                        last_field,
+                        path_split.join("/")
+                    )
+                })?;
 
             let value = op.value.context("error: expected value to add")?;
             let field_value_json: JValue =
